@@ -2,8 +2,10 @@ package repository
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
 	"time"
+
+	"github.com/cockroachdb/errors"
+	_ "github.com/lib/pq"
 )
 
 type Database struct {
@@ -13,7 +15,7 @@ type Database struct {
 func NewDatabase(connectionString string) (*Database, error) {
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "open postgres connection")
 	}
 
 	db.SetMaxOpenConns(25)
@@ -21,8 +23,11 @@ func NewDatabase(connectionString string) (*Database, error) {
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "ping postgres")
 	}
 
 	return &Database{DB: db}, nil
 }
+
+// Merchant resolution lives in merchant.go (ResolveMerchant), which de-dupes by
+// the normalized name.

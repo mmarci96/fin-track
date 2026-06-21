@@ -28,6 +28,10 @@ go.work.sum
 .env
 .venv/
 
+data/
+tmp/
+
 # Editor/IDE
 # .idea/
 # .vscode/
+.claude/

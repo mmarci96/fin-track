@@ -1,0 +1,13 @@
+FROM golang:1.26.4
+
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-hun \
+    libtesseract-dev \
+    libleptonica-dev \
+    pkg-config && \
+    go install github.com/air-verse/air@latest 
+
+WORKDIR /tmp/fin-track-src
+# ENTRYPOINT air -c .air.toml

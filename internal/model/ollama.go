@@ -5,6 +5,8 @@ type GenerateRequest struct {
 	Prompt string `json:"prompt"`
 	Stream bool   `json:"stream"`
 	Think  bool   `json:"think"`
+	// Format constrains the output, e.g. "json" for structured extraction.
+	Format string `json:"format,omitempty"`
 }
 
 type GenerateResponse struct {
