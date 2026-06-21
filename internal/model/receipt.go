@@ -1,5 +1,14 @@
 package model
 
+import "time"
+
+type User struct {
+	ID        int
+	Name      string
+	Email     *string
+	CreatedAt time.Time
+}
+
 type Merchant struct {
 	ID   int
 	Name string
@@ -19,6 +28,7 @@ type Product struct {
 
 type Receipt struct {
 	ID            int
+	UserID        int
 	MerchantID    int
 	Merchant      Merchant
 	Products      []Product

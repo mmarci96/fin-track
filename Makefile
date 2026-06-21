@@ -42,7 +42,17 @@ db-drop:
 		-d $(DB_NAME) \
 		-f - < sql/drop.sql
 
-db-reset: db-drop db-shcema
+# db-reset: db-drop db-shcema
+IMGS = IMG_0955.jpeg IMG_0961.jpeg IMG_0962.jpeg IMG_0963.jpeg IMG_0964.jpeg IMG_0967.jpeg IMG_0971.jpeg
+
+test-all-img:
+	@echo "Sending all images..."
+	@for img in $(IMGS); do \
+		echo "Sending $$img..."; \
+		curl -X POST \
+			-F "image=$(IMG_PATH)/$$img" \
+			http://localhost:8080/api/receipts/image; \
+		done
 
 test-bad-img-to-ocr:
 	@echo "Sending poor quality images..."
@@ -83,7 +93,6 @@ dev-start: kill dev-image
 		--entrypoint=air \
 		$(APP_NAME)-dev:latest \
 		 -c /tmp/fin-track-src/.air.toml
-
 
 
 image:

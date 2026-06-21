@@ -12,12 +12,16 @@ type AppConfig struct {
 	Port string `env:"PORT" envDefault:"8080"`
 
 	// Ollama connection
-	OllamaHost string `env:"OLLAMA_HOST"  envDefault:"localhost"`
-	OllamaPort string `env:"OLLAMA_PORT" envDefault:"11434"`
+	OllamaHost  string `env:"OLLAMA_HOST"  envDefault:"localhost"`
+	OllamaPort  string `env:"OLLAMA_PORT" envDefault:"11434"`
+	OllamaModel string `env:"OLLAMA_MODEL" envDefault:"llama3.2"`
 
 	// Logging values
 	LogLevel   string `env:"LOG_LEVEL" envDefault:"DEBUG"`
 	RuntimeEnv string `env:"RUNTIME_ENV" envDefault:"dev"`
+
+	// Default user assigned to receipts when the uploader is not authenticated.
+	DefaultUserID int `env:"DEFAULT_USER_ID" envDefault:"1"`
 
 	// DB connection and values
 	DbHost     string `env:"DB_HOST"`

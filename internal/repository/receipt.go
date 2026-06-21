@@ -1,16 +1,22 @@
 package repository
 
-import "github.com/mmarci96/fin-track/internal/model"
+import (
+	"database/sql"
+
+	"github.com/cockroachdb/errors"
+	"github.com/mmarci96/fin-track/internal/apperr"
+	"github.com/mmarci96/fin-track/internal/model"
+)
 
 func (db *Database) CreateReceipt(receipt *model.Receipt) error {
 	// Insert receipt and return the generated ID
 	err := db.DB.QueryRow(`
-		INSERT INTO receipts (merchant_id, total_amount)
-		VALUES ($1, $2)
+		INSERT INTO receipts (user_id, merchant_id, total_amount)
+		VALUES ($1, $2, $3)
 		RETURNING id
-	`, receipt.MerchantID, receipt.TotalAmount).Scan(&receipt.ID)
+	`, receipt.UserID, receipt.MerchantID, receipt.TotalAmount).Scan(&receipt.ID)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "insert receipt user_id=%d merchant_id=%d", receipt.UserID, receipt.MerchantID)
 	}
 
 	// Insert products if any
@@ -23,7 +29,7 @@ func (db *Database) CreateReceipt(receipt *model.Receipt) error {
 			RETURNING id
 		`, receipt.ID, product.Name, product.Price).Scan(&productID)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "insert product receipt_id=%d name=%q", receipt.ID, product.Name)
 		}
 
 		// Insert product categories if any
@@ -33,7 +39,7 @@ func (db *Database) CreateReceipt(receipt *model.Receipt) error {
 				VALUES ($1, $2)
 			`, productID, category.ID)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "insert product_category product_id=%d category_id=%d", productID, category.ID)
 			}
 		}
 	}
@@ -41,27 +47,32 @@ func (db *Database) CreateReceipt(receipt *model.Receipt) error {
 	return nil
 }
 
-func (db *Database) GetReceiptByID(id int) (*model.Receipt, error) {
+func (db *Database) GetReceiptByID(id, userID int) (*model.Receipt, error) {
 	receipt := &model.Receipt{}
 
-	// Get receipt with merchant info
+	// Get receipt with merchant info, scoped to the owning user.
 	err := db.DB.QueryRow(`
 		SELECT
 			r.id,
+			r.user_id,
 			r.total_amount,
 			r.merchant_id,
 			m.name
 		FROM receipts r
 		JOIN merchants m ON r.merchant_id = m.id
-		WHERE r.id = $1
-	`, id).Scan(
+		WHERE r.id = $1 AND r.user_id = $2
+	`, id, userID).Scan(
 		&receipt.ID,
+		&receipt.UserID,
 		&receipt.TotalAmount,
 		&receipt.Merchant.ID,
 		&receipt.Merchant.Name,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, apperr.NotFound("receipt not found", errors.Wrapf(err, "receipt id=%d user_id=%d", id, userID))
+	}
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "query receipt id=%d", id)
 	}
 
 	receipt.MerchantID = receipt.Merchant.ID
@@ -73,7 +84,7 @@ func (db *Database) GetReceiptByID(id int) (*model.Receipt, error) {
 		WHERE receipt_id = $1
 	`, id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "query products receipt_id=%d", id)
 	}
 	defer rows.Close()
 
@@ -81,7 +92,7 @@ func (db *Database) GetReceiptByID(id int) (*model.Receipt, error) {
 		product := model.Product{}
 		err := rows.Scan(&product.ID, &product.Name, &product.Price)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "scan product receipt_id=%d", id)
 		}
 
 		// Get categories for this product
@@ -92,7 +103,7 @@ func (db *Database) GetReceiptByID(id int) (*model.Receipt, error) {
 			WHERE pc.product_id = $1
 		`, product.ID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "query categories product_id=%d", product.ID)
 		}
 		defer catRows.Close()
 
@@ -100,7 +111,7 @@ func (db *Database) GetReceiptByID(id int) (*model.Receipt, error) {
 			category := model.Category{}
 			err := catRows.Scan(&category.ID, &category.Name)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "scan category product_id=%d", product.ID)
 			}
 			product.Categories = append(product.Categories, category)
 		}
@@ -108,23 +119,25 @@ func (db *Database) GetReceiptByID(id int) (*model.Receipt, error) {
 		receipt.Products = append(receipt.Products, product)
 	}
 
-	return receipt, rows.Err()
+	return receipt, errors.Wrap(rows.Err(), "iterate products")
 }
 
 func (db *Database) UpdateReceiptByID(
-
-	id int,
+	id, userID int,
 	receipt *model.Receipt,
-
 ) error {
-	// Update receipt total amount
-	_, err := db.DB.Exec(`
+	// Update receipt total amount, scoped to the owning user. A zero row count
+	// means the receipt either does not exist or belongs to another user.
+	res, err := db.DB.Exec(`
 		UPDATE receipts
 		SET total_amount = $1
-		WHERE id = $2
-	`, receipt.TotalAmount, id)
+		WHERE id = $2 AND user_id = $3
+	`, receipt.TotalAmount, id, userID)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "update receipt id=%d", id)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return apperr.NotFound("receipt not found", errors.Newf("receipt id=%d user_id=%d", id, userID))
 	}
 
 	// Delete existing products for this receipt
@@ -133,7 +146,7 @@ func (db *Database) UpdateReceiptByID(
 		WHERE receipt_id = $1
 	`, id)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "delete products receipt_id=%d", id)
 	}
 
 	// Re-insert products
@@ -146,7 +159,7 @@ func (db *Database) UpdateReceiptByID(
 			RETURNING id
 		`, id, product.Name, product.Price).Scan(&productID)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "reinsert product receipt_id=%d name=%q", id, product.Name)
 		}
 
 		// Insert product categories
@@ -156,28 +169,35 @@ func (db *Database) UpdateReceiptByID(
 				VALUES ($1, $2)
 			`, productID, category.ID)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "reinsert product_category product_id=%d category_id=%d", productID, category.ID)
 			}
 		}
 	}
 
 	return nil
 }
-func (db *Database) RemoveReceiptByID(id int) error {
-	_, err := db.DB.Exec(`
-		DELETE FROM receipts
-		WHERE id = $1
-	`, id)
 
-	return err
+func (db *Database) RemoveReceiptByID(id, userID int) error {
+	res, err := db.DB.Exec(`
+		DELETE FROM receipts
+		WHERE id = $1 AND user_id = $2
+	`, id, userID)
+	if err != nil {
+		return errors.Wrapf(err, "delete receipt id=%d", id)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return apperr.NotFound("receipt not found", errors.Newf("receipt id=%d user_id=%d", id, userID))
+	}
+
+	return nil
 }
 
 type ReceiptRepository interface {
 	CreateReceipt(receipt *model.Receipt) error
-	GetAllReceipts() ([]model.Receipt, error)
-	GetReceiptByID(id int) (*model.Receipt, error)
-	UpdateReceiptByID(id int, receipt *model.Receipt) error
-	RemoveReceiptByID(id int) error
+	GetAllReceipts(userID int) ([]model.Receipt, error)
+	GetReceiptByID(id, userID int) (*model.Receipt, error)
+	UpdateReceiptByID(id, userID int, receipt *model.Receipt) error
+	RemoveReceiptByID(id, userID int) error
 }
 
 func (db *Database) FindMerchants() ([]string, error) {
@@ -187,7 +207,7 @@ func (db *Database) FindMerchants() ([]string, error) {
 		ORDER BY name
 	`)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "query merchants")
 	}
 	defer rows.Close()
 
@@ -197,28 +217,31 @@ func (db *Database) FindMerchants() ([]string, error) {
 		var merchant string
 
 		if err := rows.Scan(&merchant); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "scan merchant")
 		}
 
 		merchants = append(merchants, merchant)
 	}
 
-	return merchants, rows.Err()
+	return merchants, errors.Wrap(rows.Err(), "iterate merchants")
 }
-func (db *Database) GetAllReceipts() ([]model.Receipt, error) {
+
+func (db *Database) GetAllReceipts(userID int) ([]model.Receipt, error) {
 	rows, err := db.DB.Query(`
 		SELECT
 			r.id,
+			r.user_id,
 			r.total_amount,
 			m.id,
 			m.name
 		FROM receipts r
 		JOIN merchants m
 			ON r.merchant_id = m.id
+		WHERE r.user_id = $1
 		ORDER BY r.created_at DESC
-	`)
+	`, userID)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "query receipts")
 	}
 	defer rows.Close()
 
@@ -229,16 +252,18 @@ func (db *Database) GetAllReceipts() ([]model.Receipt, error) {
 
 		err := rows.Scan(
 			&receipt.ID,
+			&receipt.UserID,
 			&receipt.TotalAmount,
 			&receipt.Merchant.ID,
 			&receipt.Merchant.Name,
 		)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "scan receipt")
 		}
+		receipt.MerchantID = receipt.Merchant.ID
 
 		receipts = append(receipts, receipt)
 	}
 
-	return receipts, rows.Err()
+	return receipts, errors.Wrap(rows.Err(), "iterate receipts")
 }

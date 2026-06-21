@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cfg "github.com/mmarci96/fin-track/internal/config"
-	"github.com/mmarci96/fin-track/internal/model"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/cockroachdb/errors"
+	cfg "github.com/mmarci96/fin-track/internal/config"
+	"github.com/mmarci96/fin-track/internal/model"
 )
 
 type Service struct {
@@ -39,7 +41,7 @@ func (s *Service) Generate(
 
 	body, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "marshal generate request")
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -49,21 +51,21 @@ func (s *Service) Generate(
 		bytes.NewReader(body),
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "build generate request")
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "call ollama generate")
 	}
 	defer resp.Body.Close()
 
 	var out model.GenerateResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "decode generate response")
 	}
 
 	return &out, nil
@@ -77,17 +79,17 @@ func (s *Service) HealthCheck(ctx context.Context) error {
 		nil,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "build healthcheck request")
 	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "call ollama healthcheck")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ollama returned status %d", resp.StatusCode)
+		return errors.Newf("ollama healthcheck returned status %d", resp.StatusCode)
 	}
 
 	return nil
@@ -103,19 +105,19 @@ func (s *Service) ListModels(
 		nil,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "build list models request")
 	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "call ollama list models")
 	}
 	defer resp.Body.Close()
 
 	var out model.TagsResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "decode list models response")
 	}
 
 	return &out, nil
