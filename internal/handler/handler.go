@@ -11,7 +11,7 @@ import (
 	"github.com/mmarci96/fin-track/internal/httpx"
 	"github.com/mmarci96/fin-track/internal/model"
 	"github.com/mmarci96/fin-track/internal/repository"
-	"github.com/mmarci96/fin-track/internal/service"
+	"github.com/mmarci96/fin-track/internal/service/img"
 	"github.com/mmarci96/fin-track/internal/service/receipt"
 	"github.com/mmarci96/fin-track/pkg/logger"
 )
@@ -51,7 +51,7 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 	}
 
 	// Stage 1: OCR.
-	text, err := service.ParseImageToTxt(tmp.Name(), true)
+	text, err := img.ParseImageToTxt(tmp.Name(), true)
 	if err != nil {
 		httpx.Respond(c, apperr.Internal("could not read receipt image", err))
 		return

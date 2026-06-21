@@ -148,6 +148,25 @@ func TestParseNeverPanicsOnEmptyKnownList(t *testing.T) {
 	}
 }
 
+func TestColumnAwarePrice(t *testing.T) {
+	cases := []struct {
+		line  string
+		price int
+	}{
+		{"Maretti 70 9\t399", 399}, // stray "9" stays in name column
+		{"COO Peroni 9% 0,33] 7\t499", 499},
+		{"1 099", 1099},            // no separator: unchanged thousands grouping
+		{"gulvashus\t1 099", 1099}, // legit thousands price in its own column
+		{"COO Paradicsom cherry\t957", 957},
+	}
+	for _, c := range cases {
+		p, _, ok := lastPrice(c.line)
+		if !ok || p != c.price {
+			t.Errorf("lastPrice(%q) = %d (ok=%v); want %d", c.line, p, ok, c.price)
+		}
+	}
+}
+
 // stubLLM returns a fixed extraction, simulating the Ollama fallback.
 type stubLLM struct {
 	items []Item
