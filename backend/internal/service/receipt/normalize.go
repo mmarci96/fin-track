@@ -42,7 +42,27 @@ func cleanLine(line string) string {
 
 // lastPrice returns the trailing price on a line and the remaining text before
 // it. ok is false when no trailing price token is present.
+//
+// When the line carries column separators (tabs inserted by the layout-aware
+// OCR step), the price is taken from the rightmost column that contains one.
+// This prevents stray digits in the name column from being glued onto the
+// price ("Maretti 70 9 \t 399" -> 399, not 9399).
 func lastPrice(line string) (price int, rest string, ok bool) {
+	if strings.Contains(line, "\t") {
+		cols := strings.Split(line, "\t")
+		for i := len(cols) - 1; i >= 0; i-- {
+			if p, _, found := priceAtEnd(cols[i]); found {
+				rest = strings.TrimSpace(strings.Join(cols[:i], " "))
+				return p, rest, true
+			}
+		}
+		return 0, strings.TrimSpace(strings.ReplaceAll(line, "\t", " ")), false
+	}
+	return priceAtEnd(line)
+}
+
+// priceAtEnd finds a trailing price token within a single column of text.
+func priceAtEnd(line string) (price int, rest string, ok bool) {
 	m := endPriceRe.FindStringSubmatchIndex(line)
 	if m == nil {
 		return 0, line, false

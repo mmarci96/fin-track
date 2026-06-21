@@ -28,7 +28,7 @@ PHONY:$(MAKECMDGOALS)
 all: ollama-kill db-kill db-start ollama-start image start
 
 	# docker cp ./schema.sql $(DB_NAME):/tmp/schema.sql
-db-shcema:	
+db-schema:	
 	docker exec -i $(DB_NAME) \
 		psql \
 		-U $(DB_USER) \
