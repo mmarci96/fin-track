@@ -21,6 +21,12 @@ DB_PASSWORD ?= secure_password
 DB_DATA_DOCKER_VOL ?= postgres_data
 
 .PHONY:$(MAKECMDGOALS)
+IMG_PATH ?= @$(shell pwd)/data/IMG_0955.jpeg
+
+test-ocr:
+	curl -X POST \
+		-F "image=$(IMG_PATH)" \
+		http://localhost:8080/api/receipts/image
 
 image:
 	docker build -t $(APP_NAME):$(APP_VERSION) .
