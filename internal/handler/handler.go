@@ -77,6 +77,20 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 		return
 	}
 
+	merchantID, err := h.db.GetOrCreateMerchant(result.Merchant.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	result.MerchantID = merchantID
+	result.Merchant.ID = merchantID
+
+	dbErr := h.db.CreateReceipt(&result)
+	if dbErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": dbErr.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"text":   text,
 		"result": result,

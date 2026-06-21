@@ -3,6 +3,10 @@ CREATE TABLE merchants (
     name TEXT NOT NULL UNIQUE
 );
 
+INSERT INTO merchants (name) VALUES
+    ('ROSSMANN MAGYARORSZAG KFT'),
+    ('ALDI MAGYARORSZAG ELELMISZER Bt.');
+
 CREATE TABLE receipts (
     id SERIAL PRIMARY KEY,
     merchant_id INTEGER NOT NULL REFERENCES merchants(id),

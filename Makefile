@@ -69,6 +69,7 @@ dev-start: kill dev-image
 		--name $(APP_NAME) \
 		--network $(NETWORK) \
 		-v $(shell pwd):/tmp/fin-track-src \
+		-v go-mod-cache:/go/pkg/mod \
 		-p $(PORT):$(PORT) \
 		-e HOST=$(HOST) \
 		-e PORT=$(PORT) \
