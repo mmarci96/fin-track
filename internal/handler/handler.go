@@ -55,18 +55,25 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 		tmp.Name(),
 		true,
 	)
-	merchants, err := h.db.FindMerchants()
-
-	result, err := service.MapReceiptTxt(text, merchants)
-
-	if err.Error() == "No Merchant matches from db" {
-
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
+	merchants, err := h.db.FindMerchants()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := service.MapReceiptTxt(text, merchants)
+	if err != nil {
+		if err.Error() == "No Merchant matches from db" {
+			c.JSON(http.StatusOK, gin.H{"text": text, "result": result, "warning": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 

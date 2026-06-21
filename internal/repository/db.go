@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
 
@@ -29,17 +28,16 @@ func NewDatabase(connectionString string) (*Database, error) {
 	return &Database{DB: db}, nil
 }
 
-func (db *Database) GetOrCreateMerchant(name string) (string, error) {
-	var id string
+func (db *Database) GetOrCreateMerchant(name string) (int, error) {
+	var id int
 
 	err := db.DB.QueryRow(`
-		INSERT INTO merchants (id, name)
-		VALUES ($1, $2)
+		INSERT INTO merchants (name)
+		VALUES ($1)
 		ON CONFLICT (name)
 		DO UPDATE SET name = EXCLUDED.name
 		RETURNING id
 	`,
-		uuid.NewString(),
 		name,
 	).Scan(&id)
 
@@ -49,9 +47,8 @@ func (db *Database) GetOrCreateMerchant(name string) (string, error) {
 func (db *Database) getOrCreateMerchantTx(
 	tx *sql.Tx,
 	name string,
-) (string, error) {
-
-	var id string
+) (int, error) {
+	var id int
 
 	err := tx.QueryRow(`
 		SELECT id
@@ -63,17 +60,16 @@ func (db *Database) getOrCreateMerchantTx(
 		return id, nil
 	}
 
-	id = uuid.NewString()
-
-	_, err = tx.Exec(`
-		INSERT INTO merchants (id, name)
-		VALUES ($1, $2)
+	err = tx.QueryRow(`
+		INSERT INTO merchants (name)
+		VALUES ($1)
 		ON CONFLICT (name)
 		DO UPDATE SET name = EXCLUDED.name
-	`, id, name)
+		RETURNING id
+	`, name).Scan(&id)
 
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	return id, nil

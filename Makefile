@@ -33,7 +33,16 @@ db-shcema:
 		psql \
 		-U $(DB_USER) \
 		-d $(DB_NAME) \
-		-f - < schema.sql
+		-f - < sql/schema.sql
+
+db-drop:
+	docker exec -i $(DB_NAME) \
+		psql \
+		-U $(DB_USER) \
+		-d $(DB_NAME) \
+		-f - < sql/drop.sql
+
+db-reset: db-drop db-shcema
 
 test-bad-img-to-ocr:
 	@echo "Sending poor quality images..."

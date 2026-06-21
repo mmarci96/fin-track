@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/agnivade/levenshtein"
-	"github.com/google/uuid"
 	"github.com/mmarci96/fin-track/internal/model"
 	"github.com/otiai10/gosseract/v2"
 )
@@ -96,7 +95,6 @@ func MapReceiptTxt(text string, merchants []string) (model.Receipt, error) {
 func mapAldiReceipt(rows []string) (r model.Receipt, err error) {
 	m := model.Merchant{Name: rows[0]}
 	r.Merchant = m
-	r.ID = uuid.NewString()
 
 	for _, row := range rows[6:] {
 		println(row)

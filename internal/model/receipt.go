@@ -1,25 +1,25 @@
 package model
 
 type Merchant struct {
-	ID   string
+	ID   int
 	Name string
 }
 
 type Category struct {
-	ID   string
+	ID   int
 	Name string
 }
 
 type Product struct {
-	ID         string
+	ID         int
 	Name       string
 	Price      int
 	Categories []Category
 }
 
 type Receipt struct {
-	ID            string
-	MerchantID    string
+	ID            int
+	MerchantID    int
 	Merchant      Merchant
 	Products      []Product
 	TotalAmount   int
