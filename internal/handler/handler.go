@@ -5,13 +5,18 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mmarci96/fin-track/internal/repository"
 	"github.com/mmarci96/fin-track/internal/service"
+	"github.com/mmarci96/fin-track/internal/service/ollama"
 )
 
-type ImageHandler struct{}
+type ImageHandler struct {
+	ollamaSvc *ollama.Service
+	db        *repository.Database
+}
 
-func NewImageHandler() *ImageHandler {
-	return &ImageHandler{}
+func NewImageHandler(ollama *ollama.Service, db *repository.Database) *ImageHandler {
+	return &ImageHandler{ollamaSvc: ollama, db: db}
 }
 func (h *ImageHandler) OCR(c *gin.Context) {
 
@@ -50,6 +55,13 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 		tmp.Name(),
 		true,
 	)
+	merchants, err := h.db.FindMerchants()
+
+	result, err := service.MapReceiptTxt(text, merchants)
+
+	if err.Error() == "No Merchant matches from db" {
+
+	}
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -59,19 +71,7 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"text": text,
+		"text":   text,
+		"result": result,
 	})
 }
-
-// func (h *ImageHandler) ParseImgToTxt(c *gin.Context) {
-// 	var req model.GenerateRequest
-// 	if err := c.ShouldBindJSON(&req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{
-// 			"error":   "Invalid input format",
-// 			"details": err.Error(),
-// 		})
-// 		return
-// 	}
-//
-// 	service.ParseImageToTxt()
-// }

@@ -2,8 +2,10 @@ package repository
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
 	"time"
+
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 )
 
 type Database struct {
@@ -25,4 +27,54 @@ func NewDatabase(connectionString string) (*Database, error) {
 	}
 
 	return &Database{DB: db}, nil
+}
+
+func (db *Database) GetOrCreateMerchant(name string) (string, error) {
+	var id string
+
+	err := db.DB.QueryRow(`
+		INSERT INTO merchants (id, name)
+		VALUES ($1, $2)
+		ON CONFLICT (name)
+		DO UPDATE SET name = EXCLUDED.name
+		RETURNING id
+	`,
+		uuid.NewString(),
+		name,
+	).Scan(&id)
+
+	return id, err
+}
+
+func (db *Database) getOrCreateMerchantTx(
+	tx *sql.Tx,
+	name string,
+) (string, error) {
+
+	var id string
+
+	err := tx.QueryRow(`
+		SELECT id
+		FROM merchants
+		WHERE name = $1
+	`, name).Scan(&id)
+
+	if err == nil {
+		return id, nil
+	}
+
+	id = uuid.NewString()
+
+	_, err = tx.Exec(`
+		INSERT INTO merchants (id, name)
+		VALUES ($1, $2)
+		ON CONFLICT (name)
+		DO UPDATE SET name = EXCLUDED.name
+	`, id, name)
+
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }

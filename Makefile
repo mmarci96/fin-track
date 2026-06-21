@@ -16,40 +16,88 @@ RUNTIME_ENV ?= DEBUG
 DB_NAME ?= fin-track-db
 DB_HOST ?= $(DB_NAME)
 DB_PORT ?= 5432
-DB_USER ?= local_user
+DB_USER ?= $(APP_NAME)
 DB_PASSWORD ?= secure_password
 DB_DATA_DOCKER_VOL ?= postgres_data
 
-.PHONY:$(MAKECMDGOALS)
-IMG_PATH ?= @$(shell pwd)/data/IMG_0955.jpeg
+# Testing
+IMG_PATH ?= @$(shell pwd)/data
+# IMG_0955.jpeg
+PHONY:$(MAKECMDGOALS)
 
-test-ocr:
-	curl -X POST \
-		-F "image=$(IMG_PATH)" \
+all: ollama-kill db-kill db-start ollama-start image start
+
+	# docker cp ./schema.sql $(DB_NAME):/tmp/schema.sql
+db-shcema:	
+	docker exec -i $(DB_NAME) \
+		psql \
+		-U $(DB_USER) \
+		-d $(DB_NAME) \
+		-f - < schema.sql
+
+test-bad-img-to-ocr:
+	@echo "Sending poor quality images..."
+	-curl -X POST \
+		-F "image=$(IMG_PATH)/IMG_0961.jpeg" \
+		http://localhost:8080/api/receipts/image 
+	-curl -X POST \
+		-F "image=$(IMG_PATH)/IMG_0962.jpeg" \
 		http://localhost:8080/api/receipts/image
 
-image:
-	docker build -t $(APP_NAME):$(APP_VERSION) .
+test-ocr:
+	-curl -X POST \
+		-F "image=$(IMG_PATH)/IMG_0955.jpeg" \
+		http://localhost:8080/api/receipts/image
+	-curl -X POST \
+		-F "image=$(IMG_PATH)/IMG_0963.jpeg" \
+		http://localhost:8080/api/receipts/image
 
+dev-image:
+	docker build -f Dockerfile.dev -t $(APP_NAME)-dev:latest .
 
-start: create-network
-	docker run  -d \
+dev-start: kill dev-image
+	docker run  -it --rm \
 		--name $(APP_NAME) \
 		--network $(NETWORK) \
-		-p "8080:8080" \
+		-v $(shell pwd):/tmp/fin-track-src \
+		-p $(PORT):$(PORT) \
 		-e HOST=$(HOST) \
 		-e PORT=$(PORT) \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \
 		-e OLLAMA_PORT=$(OLLAMA_PORT) \
 		-e DB_NAME=$(DB_NAME) \
-		-e DB_HOST=$(DB_NAME) \
+		-e DB_HOST=$(DB_HOST) \
 		-e DB_PORT=$(DB_PORT) \
-		-e DB_USER=$(DB_HOST) \
-		-e DB_PASSWORD=secure_password \
+		-e DB_USER=$(DB_USER) \
+		-e DB_PASSWORD=$(DB_PASSWORD) \
+		--entrypoint=air \
+		$(APP_NAME)-dev:latest \
+		 -c /tmp/fin-track-src/.air.toml
+
+
+
+image:
+	docker build -t $(APP_NAME):$(APP_VERSION) .
+
+
+start: create-network kill
+	docker run  -d \
+		--name $(APP_NAME) \
+		--network $(NETWORK) \
+		-p $(PORT):$(PORT) \
+		-e HOST=$(HOST) \
+		-e PORT=$(PORT) \
+		-e OLLAMA_HOST=$(OLLAMA_HOST) \
+		-e OLLAMA_PORT=$(OLLAMA_PORT) \
+		-e DB_NAME=$(DB_NAME) \
+		-e DB_HOST=$(DB_HOST) \
+		-e DB_PORT=$(DB_PORT) \
+		-e DB_USER=$(DB_USER) \
+		-e DB_PASSWORD=$(DB_PASSWORD) \
 		$(APP_NAME):$(APP_VERSION)
 
 kill:
-	docker rm -f $(APP_NAME)
+	-docker rm -f $(APP_NAME)
 
 create-network:
 	-docker network create $(NETWORK)
@@ -58,7 +106,7 @@ ollama-start: create-network
 	docker run --rm -d \
 		--name $(OLLAMA_APP_NAME) \
 		--network $(NETWORK) \
-		-p "11434:11434" \
+		-p $(OLLAMA_PORT):$(OLLAMA_PORT) \
 		-v ollama_models:/root/.ollama \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \
 		-e OLLAMA_PORT=$(OLLAMA_PORT) \
@@ -75,7 +123,7 @@ db-start: create-network
 		--network $(NETWORK) \
 		-p "$(DB_PORT):5432" \
 		--name $(DB_NAME) \
-		-e POSTGRES_USER=$(DB_HOST) \
+		-e POSTGRES_USER=$(DB_USER) \
 		-e POSTGRES_PASSWORD=$(DB_PASSWORD) \
 		-e POSTGRES_DB=$(DB_NAME) \
 		-v $(DB_DATA_DOCKER_VOL)=/var/lib/postgresql \
@@ -83,5 +131,5 @@ db-start: create-network
 
 
 db-kill:
-	docker kill $(DB_NAME)
+	-docker kill $(DB_NAME)
 
