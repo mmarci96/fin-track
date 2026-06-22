@@ -2,6 +2,11 @@ package model
 
 import "time"
 
+type Currency struct {
+	ID   int
+	Code string
+}
+
 type User struct {
 	ID        int
 	Name      string
@@ -34,4 +39,5 @@ type Receipt struct {
 	Products      []Product
 	TotalAmount   int
 	ScannedAmount string
+	Currency      Currency
 }

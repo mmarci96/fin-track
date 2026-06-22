@@ -15,9 +15,27 @@ fin-track/
 │   ├── data/        sample receipt images for testing
 │   ├── Makefile     docker-based dev/build targets
 │   └── go.mod
-├── frontend/    React client (planned — see .claude/plan.md)
+├── frontend/    React client + Traefik edge (mobile-first)
+├── Makefile     root orchestrator (delegates to backend/ and frontend/)
 └── README.md
 ```
+
+## Quickstart (Docker)
+
+```sh
+# database + schema (also creates the shared `fin-track` network)
+make -C backend db-start
+make -C backend db-schema
+# optional: LLM runtime for the OCR parse fallback
+make -C backend ollama-start
+
+# build + run backend, UI, and the Traefik edge on the same network
+make start
+```
+
+Open **http://localhost** (Traefik dashboard at http://localhost:8088).
+Traefik routes `/api` → Go backend and everything else → the React UI, so the
+browser sees a single origin. Tear down with `make stop`.
 
 ## Backend
 
@@ -31,4 +49,12 @@ full set of targets (db, ollama, ocr test fixtures).
 
 ## Frontend
 
-Not built yet. The implementation plan lives in `.claude/plan.md`.
+Mobile-first React + Vite + Tailwind client (cropping-led receipt capture).
+
+```sh
+make -C frontend start   # build the UI image + run UI and Traefik
+make -C frontend dev     # local Vite dev server (needs host Node)
+make e2e                 # Playwright DOM tests against the live edge
+```
+
+The full design and runbook live in `.claude/plan.md`.

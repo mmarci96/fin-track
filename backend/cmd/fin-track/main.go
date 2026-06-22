@@ -50,6 +50,8 @@ func run(cfg *config.AppConfig) error {
 
 	ollamaSvc := ollama.NewOllamaService(*cfg, logger.Log)
 
+	// imgSvc := img.NewImgService()
+
 	engine := router.SetupRouter(db, cfg, ollamaSvc)
 
 	srv := &http.Server{

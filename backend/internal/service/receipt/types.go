@@ -48,6 +48,7 @@ type Result struct {
 	Confidence    float64  `json:"confidence"`
 	Decision      Decision `json:"decision"`
 	Warnings      []string `json:"warnings,omitempty"`
+	Currency      string   `json:"currency"`
 }
 
 // LLMFallback extracts items from OCR text when heuristics are not confident.

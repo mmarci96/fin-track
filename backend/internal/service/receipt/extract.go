@@ -15,8 +15,9 @@ const minItemPrice = 10
 
 // extracted holds the raw output of heuristic extraction before scoring.
 type extracted struct {
-	Items []Item
-	Total int
+	Items    []Item
+	Total    int
+	Currency string
 }
 
 // extractItems walks the cleaned lines and pulls out line items and the printed
@@ -34,6 +35,7 @@ func extractItems(lines []string) extracted {
 
 		switch t {
 		case lineTotal:
+			println("Printing line for debug: ")
 			if price, _, ok := lastPrice(line); ok {
 				if isFinalTotal(line) || out.Total == 0 {
 					out.Total = price

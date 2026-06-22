@@ -5,6 +5,30 @@ import (
 	"github.com/otiai10/gosseract/v2"
 )
 
+type ImgService struct {
+	client *gosseract.Client
+}
+
+func NewImgService() *ImgService {
+	client := gosseract.NewClient()
+	defer client.Close()
+	client.Languages = []string{"hun", "eng"}
+	return &ImgService{client: client}
+}
+
+// Parse img to text with gossreract client.HOCRText and returns the results
+func GetHOCRText(imgPath string) (string, error) {
+	client := gosseract.NewClient()
+	defer client.Close()
+	client.Languages = []string{"hun", "eng"}
+	client.SetImage(imgPath)
+	hocr, err := client.HOCRText()
+	if err != nil {
+		return "", errors.Wrapf(err, "ocr hocr extraction path=%q", imgPath)
+	}
+	return hocr, nil
+}
+
 // ParseImageToTxt runs OCR over an image and returns text. For the text path it
 // reconstructs layout from word bounding boxes so column gaps (notably the
 // far-right price column) survive as tab separators instead of collapsing into
@@ -14,7 +38,6 @@ func ParseImageToTxt(imagePath string, returnTxt bool) (string, error) {
 	client := gosseract.NewClient()
 	defer client.Close()
 	client.Languages = []string{"hun", "eng"}
-
 	client.SetImage(imagePath)
 
 	if !returnTxt {

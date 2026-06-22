@@ -39,6 +39,11 @@ dist/
 .vite/
 *.local
 
+# Playwright
+playwright-report/
+test-results/
+.playwright/
+
 # Editor/IDE
 # .idea/
 # .vscode/

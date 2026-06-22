@@ -1,0 +1,26 @@
+# Traefik dynamic config (file provider). Routes by path to containers reached
+# by name on the shared `fin-track` docker network — no docker socket needed.
+#   /api/*  -> backend container  (named `fin-track`, port 8080)
+#   /*      -> frontend container (named `fin-track-ui`, port 80)
+http:
+  routers:
+    api:
+      rule: 'PathPrefix(`/api`)'
+      entryPoints: [web]
+      service: backend
+      priority: 100 # beats the frontend catch-all
+    web:
+      rule: 'PathPrefix(`/`)'
+      entryPoints: [web]
+      service: frontend
+      priority: 1
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: 'http://fin-track:8080'
+    frontend:
+      loadBalancer:
+        servers:
+          - url: 'http://fin-track-ui:80'

@@ -19,7 +19,7 @@ func TestSetupRouterRegisters(t *testing.T) {
 		}
 	}()
 
-	r := SetupRouter(nil, &config.AppConfig{DefaultUserID: 1}, nil)
+	r := SetupRouter(nil, &config.AppConfig{DefaultUserID: 1}, nil, nil)
 	if len(r.Routes()) == 0 {
 		t.Fatal("expected routes to be registered")
 	}

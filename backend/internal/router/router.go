@@ -9,7 +9,11 @@ import (
 	ollamapkg "github.com/mmarci96/fin-track/internal/service/ollama"
 )
 
-func SetupRouter(db *repository.Database, cfg *config.AppConfig, ollama *ollamapkg.Service) *gin.Engine {
+func SetupRouter(
+	db *repository.Database,
+	cfg *config.AppConfig,
+	ollama *ollamapkg.Service,
+) *gin.Engine {
 	r := gin.New()
 
 	// Order matters: request id first so every later log line is correlated,

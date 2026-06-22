@@ -4,10 +4,7 @@ package receipt
 // printed total. OCR drops digits and receipts include deposits/discounts, so we
 // allow a small absolute floor plus a relative band.
 func reconcileTolerance(total int) int {
-	tol := total / 100 // 1%
-	if tol < 50 {
-		tol = 50
-	}
+	tol := max(total/100, 50)
 	return tol
 }
 

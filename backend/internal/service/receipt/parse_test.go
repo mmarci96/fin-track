@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -32,12 +33,7 @@ func hasItemContaining(items []Item, sub string) bool {
 }
 
 func hasWarning(ws []string, w string) bool {
-	for _, x := range ws {
-		if x == w {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ws, w)
 }
 
 func parse(t *testing.T, fixture string) Result {

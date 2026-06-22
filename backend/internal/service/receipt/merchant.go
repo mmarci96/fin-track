@@ -32,7 +32,7 @@ func detectMerchant(lines, known []string) merchantMatch {
 	best := merchantMatch{Candidate: candidate}
 
 	limit := min(headerScanLines, len(lines))
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		norm := normalizeName(lines[i])
 		if norm == "" {
 			continue
@@ -63,14 +63,14 @@ func similarity(a, b string) float64 {
 
 // strategyKey picks an extraction strategy from a (canonical or candidate)
 // merchant name.
-func strategyKey(name string) string {
-	n := normalizeName(name)
-	switch {
-	case strings.Contains(n, "ALDI"):
-		return "aldi"
-	case strings.Contains(n, "ROSSMANN"):
-		return "rossmann"
-	default:
-		return "generic"
-	}
-}
+// func strategyKey(name string) string {
+// 	n := normalizeName(name)
+// 	switch {
+// 	case strings.Contains(n, "ALDI"):
+// 		return "aldi"
+// 	case strings.Contains(n, "ROSSMANN"):
+// 		return "rossmann"
+// 	default:
+// 		return "generic"
+// 	}
+// }
