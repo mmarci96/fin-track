@@ -20,10 +20,21 @@ INSERT INTO merchants (name, normalized_name) VALUES
     ('ROSSMANN MAGYARORSZAG KFT', 'ROSSMANN MAGYARORSZAG KFT'),
     ('ALDI MAGYARORSZAG ELELMISZER Bt.', 'ALDI MAGYARORSZAG ELELMISZER BT');
 
+-- Supported currencies. HUF is inserted first so it gets id = 1, which the
+-- receipts.currency_id default below relies on. Amounts are stored as integers
+-- in each currency's minor unit (HUF has 0 decimals, EUR has 2).
+CREATE TABLE currencies (
+    id SERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE
+);
+
+INSERT INTO currencies (code) VALUES ('HUF'), ('EUR');
+
 CREATE TABLE receipts (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) DEFAULT 1,
     merchant_id INTEGER NOT NULL REFERENCES merchants(id),
+    currency_id INTEGER NOT NULL REFERENCES currencies(id) DEFAULT 1,
     total_amount INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

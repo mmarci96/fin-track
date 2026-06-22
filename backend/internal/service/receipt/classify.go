@@ -13,6 +13,7 @@ const (
 	lineItem
 	lineName // a name with no price; may pair with a following weight line
 	lineWeight
+	lineUnitQty // "<qty> <unit> X <unit price>": modifier preceding a named item
 	lineDiscount
 	lineDeposit
 	lineTotal
@@ -22,6 +23,15 @@ const (
 var (
 	longNumberRe = regexp.MustCompile(`\d{8,}`)
 	ftPerKgRe    = regexp.MustCompile(`(?i)FT\s*/\s*KG`)
+	// qtyUnitRe matches a quantity line that states "<qty> <unit> X <unit price>"
+	// (e.g. "0,332 KG X 5 150 Ft", "1 DB X 580 Ft", "1 ADAG X 2 330 Ft"). The
+	// trailing number is the per-unit price, never the line total, so these must
+	// not be emitted as their own items.
+	qtyUnitRe = regexp.MustCompile(`(?i)^\s*\d[\d.,\s]*(?:KG|DKG|DB|ADAG)\s*X\b`)
+	// maskedCardRe matches a masked card PAN ("4229 87** **** 5080", OCR'd
+	// variously as "32%* tt", "92*% #4%%") printed in the payment footer; it must
+	// never be read as an item.
+	maskedCardRe = regexp.MustCompile(`[*#%]{2,}`)
 )
 
 var (
@@ -69,11 +79,24 @@ func classify(line string) (lineType, bool) {
 		return lineDeposit, hasPrice
 	case containsAny(norm, discountKeyword) || strings.HasPrefix(strings.TrimSpace(line), "-"):
 		return lineDiscount, hasPrice
-	case containsAny(norm, footerKeywords) || longNumberRe.MatchString(line):
+	case containsAny(norm, footerKeywords) || longNumberRe.MatchString(line) || maskedCardRe.MatchString(line):
 		return lineFooter, hasPrice
-	case strings.Contains(line, ":"):
-		// Labels (OSSZEG:, AUTH:, D:...) carry a colon; sale lines do not.
+	case strings.Contains(strings.SplitN(line, "\t", 2)[0], ":"):
+		// Labels (OSSZEG:, AUTH:, D:...) carry a colon in their leading column;
+		// sale lines do not. Only inspect the text before the first tab so a
+		// trailing tax-code in the price column (e.g. "315 :C00") is not mistaken
+		// for a label.
 		return lineFooter, hasPrice
+	case qtyUnitRe.MatchString(line):
+		// "<qty> <unit> X ...". When the per-kg rate is on this same line (Aldi:
+		// "0,032 kg x 1 799 Ft/kg 957") the trailing number is the line total, so
+		// treat it as a weight line that pairs with the preceding name. Otherwise
+		// (OTP: "0,332 KG X 5 150 Ft") the trailing number is only the unit price
+		// and the named item with its real total follows on the next line.
+		if ftPerKgRe.MatchString(line) {
+			return lineWeight, hasPrice
+		}
+		return lineUnitQty, hasPrice
 	case ftPerKgRe.MatchString(line) || (strings.Contains(norm, "KG") && !hasPrice):
 		return lineWeight, hasPrice
 	case hasPrice && countLetters(line) >= 2:

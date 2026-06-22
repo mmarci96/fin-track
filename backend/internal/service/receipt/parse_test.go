@@ -38,7 +38,7 @@ func hasWarning(ws []string, w string) bool {
 
 func parse(t *testing.T, fixture string) Result {
 	t.Helper()
-	return NewParser(canonicalMerchants, nil).Parse(context.Background(), loadFixture(t, fixture))
+	return NewParser(canonicalMerchants, nil, nil).Parse(context.Background(), loadFixture(t, fixture))
 }
 
 func TestParseAldi0955(t *testing.T) {
@@ -123,7 +123,7 @@ func TestParseRossmann0967(t *testing.T) {
 }
 
 func TestParseRejectsUnreadable(t *testing.T) {
-	r := NewParser(canonicalMerchants, nil).Parse(context.Background(),
+	r := NewParser(canonicalMerchants, nil, nil).Parse(context.Background(),
 		"some blurry\ntext with no\nprices at all\n")
 	if r.Decision != DecisionReject {
 		t.Errorf("expected reject for unreadable input, got %s with %d items", r.Decision, len(r.Items))
@@ -132,7 +132,7 @@ func TestParseRejectsUnreadable(t *testing.T) {
 
 func TestParseNeverPanicsOnEmptyKnownList(t *testing.T) {
 	// Regression for the old findBestMatch index-out-of-range crash.
-	r := NewParser(nil, nil).Parse(context.Background(), loadFixture(t, "aldi_0955.txt"))
+	r := NewParser(nil, nil, nil).Parse(context.Background(), loadFixture(t, "aldi_0955.txt"))
 	if r.MerchantKnown {
 		t.Errorf("no known merchants => should be unknown")
 	}
@@ -175,7 +175,7 @@ func (s stubLLM) ExtractItems(context.Context, string) ([]Item, int, error) {
 
 func TestLLMFallbackAdoptedWhenHeuristicEmpty(t *testing.T) {
 	fb := stubLLM{items: []Item{{Name: "Bread", Price: 500}, {Name: "Milk", Price: 300}}, total: 800}
-	r := NewParser(canonicalMerchants, fb).Parse(context.Background(),
+	r := NewParser(canonicalMerchants, nil, fb).Parse(context.Background(),
 		"unreadable\ngarbage\nlines\n")
 
 	if len(r.Items) != 2 {

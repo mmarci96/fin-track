@@ -9,6 +9,11 @@ import (
 // start of an item name (e.g. "COO Peroni", "000 Kockazott").
 var leadingCodeRe = regexp.MustCompile(`^[A-Z0-9]{3}\s+`)
 
+// unitPriceSuffixRe strips a trailing per-unit price printed after a restaurant
+// item name (e.g. "EBED 5150FT /" -> "EBED", "FELAR 580FT /" -> "FELAR"). The
+// real line total is taken from the price column, not this suffix.
+var unitPriceSuffixRe = regexp.MustCompile(`(?i)\s+\S*\d+\s*FT\s*/\s*\w*\.?$`)
+
 // minItemPrice filters out implausibly small prices (OCR noise like a stray "1"
 // or an address house number). No real HUF grocery line costs under 10.
 const minItemPrice = 10
@@ -35,13 +40,17 @@ func extractItems(lines []string) extracted {
 
 		switch t {
 		case lineTotal:
-			println("Printing line for debug: ")
 			if price, _, ok := lastPrice(line); ok {
 				if isFinalTotal(line) || out.Total == 0 {
 					out.Total = price
 				}
 			}
 			pendingName = ""
+			// The grand total ends the item section; everything after it is
+			// payment/footer noise (card PANs, terminal ids), so stop scanning.
+			if isFinalTotal(line) {
+				return out
+			}
 
 		case lineWeight:
 			// A weight line may carry the price for the preceding nameless item.
@@ -59,6 +68,13 @@ func extractItems(lines []string) extracted {
 				out.Items = append(out.Items, Item{Name: name, Price: price})
 				pendingName = ""
 			}
+
+		case lineUnitQty:
+			// OTP-style "qty x unit-price" modifier: the trailing price is the
+			// per-unit price, not a line total, so emit nothing. The item name and
+			// its real total follow on the next line. Reset any pending name so a
+			// stray header/separator line cannot pair with this unit price.
+			pendingName = ""
 
 		case lineName:
 			// Name with no price; the price may be on a following weight line.
@@ -91,6 +107,7 @@ func itemsStart(lines []string) int {
 // from an item name so it reads cleanly.
 func cleanItemName(name string) string {
 	name = strings.TrimSpace(name)
+	name = unitPriceSuffixRe.ReplaceAllString(name, "")
 	name = strings.Trim(name, "-_.,| ")
 	// Drop a leading OCR column code only when real text remains.
 	if stripped := leadingCodeRe.ReplaceAllString(name, ""); countLetters(stripped) >= 4 {

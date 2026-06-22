@@ -30,11 +30,13 @@ type productInput struct {
 type receiptCreateRequest struct {
 	MerchantID  int            `json:"merchant_id" binding:"required"`
 	TotalAmount int            `json:"total_amount"`
+	Currency    string         `json:"currency"`
 	Products    []productInput `json:"products"`
 }
 
 type receiptUpdateRequest struct {
 	TotalAmount int            `json:"total_amount"`
+	Currency    string         `json:"currency"`
 	Products    []productInput `json:"products"`
 }
 
@@ -66,6 +68,7 @@ func (h *ReceiptHandler) Create(c *gin.Context) {
 		UserID:      httpx.UserIDFromContext(c.Request.Context()),
 		MerchantID:  req.MerchantID,
 		TotalAmount: req.TotalAmount,
+		Currency:    model.Currency{Code: req.Currency},
 		Products:    toProducts(req.Products),
 	}
 
@@ -122,6 +125,7 @@ func (h *ReceiptHandler) Update(c *gin.Context) {
 
 	receipt := model.Receipt{
 		TotalAmount: req.TotalAmount,
+		Currency:    model.Currency{Code: req.Currency},
 		Products:    toProducts(req.Products),
 	}
 

@@ -14,7 +14,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { CenteredSpinner } from '@/components/ui/spinner';
 import { MoneyInput } from '@/components/MoneyInput';
 import { WarningBanner } from '@/components/WarningBanner';
-import { formatMoney, parseMoney } from '@/lib/format';
+import {
+  formatMoney,
+  parseMoney,
+  displayMoney,
+  CURRENCY_CODES,
+} from '@/lib/format';
 
 interface FormRow {
   name: string;
@@ -22,6 +27,7 @@ interface FormRow {
 }
 interface FormValues {
   total: string;
+  currency: string;
   products: FormRow[];
 }
 
@@ -44,7 +50,7 @@ export function ReceiptDetail() {
   const remove = useDeleteReceipt();
 
   const { register, control, handleSubmit, reset, watch } = useForm<FormValues>(
-    { defaultValues: { total: '', products: [] } },
+    { defaultValues: { total: '', currency: 'HUF', products: [] } },
   );
   const {
     fields,
@@ -59,29 +65,37 @@ export function ReceiptDetail() {
   useEffect(() => {
     if (!receipt) return;
     reset({
-      total: formatMoney(receipt.total),
+      total: formatMoney(receipt.total, receipt.currency),
+      currency: receipt.currency,
       products: receipt.products.map((p) => ({
         name: p.name,
-        price: formatMoney(p.price),
+        price: formatMoney(p.price, receipt.currency),
       })),
     });
   }, [receipt, reset]);
 
+  // Format/parse against the currency currently selected in the form, so
+  // switching it reformats the displayed amounts live.
+  const currency = watch('currency');
   const rows = watch('products');
   const computedTotal = (rows ?? []).reduce(
-    (sum, r) => sum + parseMoney(r.price || '0'),
+    (sum, r) => sum + parseMoney(r.price || '0', currency),
     0,
   );
-  const enteredTotal = parseMoney(watch('total') || '0');
+  const enteredTotal = parseMoney(watch('total') || '0', currency);
   const mismatch = Math.abs(computedTotal - enteredTotal) > 0;
 
   const onSubmit = (values: FormValues) => {
     update.mutate(
       {
-        total_amount: parseMoney(values.total),
+        total_amount: parseMoney(values.total, values.currency),
+        currency: values.currency,
         products: values.products
           .filter((p) => p.name.trim() !== '')
-          .map((p) => ({ name: p.name.trim(), price: parseMoney(p.price) })),
+          .map((p) => ({
+            name: p.name.trim(),
+            price: parseMoney(p.price, values.currency),
+          })),
       },
       { onSuccess: () => navigate('/') },
     );
@@ -187,11 +201,28 @@ export function ReceiptDetail() {
         <h2 className="text-sm font-medium text-muted-foreground">Total</h2>
         <Card>
           <CardContent className="space-y-2">
-            <MoneyInput aria-label="Total amount" {...register('total')} />
+            <div className="flex items-center gap-2">
+              <MoneyInput
+                aria-label="Total amount"
+                className="flex-1"
+                {...register('total')}
+              />
+              <select
+                aria-label="Currency"
+                className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                {...register('currency')}
+              >
+                {CURRENCY_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+            </div>
             <p className="text-xs text-muted-foreground">
               Items add up to{' '}
               <span className="font-medium tabular-nums">
-                {formatMoney(computedTotal)}
+                {displayMoney(computedTotal, currency)}
               </span>
               {mismatch && (
                 <span className="ml-1 font-medium text-warning">

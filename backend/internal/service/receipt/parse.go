@@ -1,6 +1,10 @@
 package receipt
 
-import "context"
+import (
+	"context"
+
+	"github.com/mmarci96/fin-track/internal/model"
+)
 
 // minItems is the threshold below which a parse is flagged low_item_count (and,
 // if a fallback is available, retried via the LLM).
@@ -9,14 +13,15 @@ const minItems = 2
 // Parser turns OCR text into a structured Result. It is configured with the
 // known canonical merchant names and an optional LLM fallback.
 type Parser struct {
-	known    []string
-	fallback LLMFallback
+	known      []string
+	currencies []model.Currency
+	fallback   LLMFallback
 }
 
 // NewParser builds a parser. fallback may be nil (heuristics only), which is how
 // the offline tests run.
-func NewParser(known []string, fallback LLMFallback) *Parser {
-	return &Parser{known: known, fallback: fallback}
+func NewParser(known []string, currencies []model.Currency, fallback LLMFallback) *Parser {
+	return &Parser{known: known, currencies: currencies, fallback: fallback}
 }
 
 // Parse runs the full pipeline and returns a graded Result.
@@ -30,6 +35,13 @@ func (p *Parser) Parse(ctx context.Context, text string) Result {
 	}
 	if mm.Known {
 		res.MerchantName = mm.Canonical
+	}
+
+	cs := detectCurrency(lines)
+	for _, c := range p.currencies {
+		if c.Code == string(cs) {
+			res.Currency = c
+		}
 	}
 
 	ex := extractItems(lines)

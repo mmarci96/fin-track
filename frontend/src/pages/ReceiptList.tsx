@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CenteredSpinner } from '@/components/ui/spinner';
 import { WarningBanner } from '@/components/WarningBanner';
-import { formatMoney } from '@/lib/format';
+import { displayMoney } from '@/lib/format';
 
 export function ReceiptList() {
   const navigate = useNavigate();
@@ -65,7 +65,7 @@ export function ReceiptList() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-semibold tabular-nums">
-                        {formatMoney(r.total)}
+                        {displayMoney(r.total, r.currency)}
                       </span>
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>

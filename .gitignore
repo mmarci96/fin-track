@@ -12,7 +12,7 @@
 
 # Test binary, built with `go test -c`
 *.test
-
+traefik-home/
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*

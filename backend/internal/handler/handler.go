@@ -65,7 +65,13 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 		return
 	}
 
-	result := receipt.NewParser(merchants, h.extractor).Parse(c.Request.Context(), text)
+	currencies, err := h.db.GetAllCurrencies()
+	if err != nil {
+		httpx.Respond(c, apperr.Internal("could not load currencies", err))
+		return
+	}
+
+	result := receipt.NewParser(merchants, currencies, h.extractor).Parse(c.Request.Context(), text)
 	log = log.With("merchant", result.MerchantName, "decision", string(result.Decision))
 	log.Info("receipt parsed",
 		"items", len(result.Items),
@@ -131,5 +137,6 @@ func toModelReceipt(r receipt.Result, merchantID, userID int) model.Receipt {
 		Merchant:    model.Merchant{ID: merchantID, Name: r.MerchantName},
 		Products:    products,
 		TotalAmount: total,
+		Currency:    r.Currency,
 	}
 }

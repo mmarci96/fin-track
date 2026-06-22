@@ -17,6 +17,10 @@ var (
 	// A price at the end of a line: an optional thousands-grouped number
 	// ("1 099", "10 984") or a plain run of digits, optionally followed by "Ft".
 	endPriceRe = regexp.MustCompile(`(?:^|\s)(\d{1,3}(?:\s\d{3})+|\d+)\s*(?:Ft)?\s*$`)
+	// The first price-looking token in a column: a thousands-grouped number or a
+	// run of 2+ digits. Used for tab columns where the line total is followed by
+	// an OCR'd tax-category code ("690 COO", "1 380 £00", "315 :C00").
+	firstPriceRe = regexp.MustCompile(`\d{1,3}(?:\s\d{3})+|\d{2,}`)
 )
 
 // normalizeText splits OCR output into cleaned, non-empty lines.
@@ -51,7 +55,7 @@ func lastPrice(line string) (price int, rest string, ok bool) {
 	if strings.Contains(line, "\t") {
 		cols := strings.Split(line, "\t")
 		for i := len(cols) - 1; i >= 0; i-- {
-			if p, _, found := priceAtEnd(cols[i]); found {
+			if p, found := firstPriceIn(cols[i]); found {
 				rest = strings.TrimSpace(strings.Join(cols[:i], " "))
 				return p, rest, true
 			}
@@ -59,6 +63,21 @@ func lastPrice(line string) (price int, rest string, ok bool) {
 		return 0, strings.TrimSpace(strings.ReplaceAll(line, "\t", " ")), false
 	}
 	return priceAtEnd(line)
+}
+
+// firstPriceIn returns the first price-looking token in a single column. The
+// price column carries the line total first, sometimes followed by a garbled
+// tax-category code ("690 COO" -> 690, "1 380 £00" -> 1380).
+func firstPriceIn(col string) (price int, ok bool) {
+	m := firstPriceRe.FindString(col)
+	if m == "" {
+		return 0, false
+	}
+	val, err := parseAmount(m)
+	if err != nil {
+		return 0, false
+	}
+	return val, true
 }
 
 // priceAtEnd finds a trailing price token within a single column of text.

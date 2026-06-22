@@ -18,6 +18,7 @@ interface RawReceipt {
   Merchant: { ID: number; Name: string };
   Products: RawProduct[] | null;
   TotalAmount: number;
+  Currency: { ID: number; Code: string } | null;
 }
 
 // --- App types -------------------------------------------------------------
@@ -31,6 +32,7 @@ export interface Receipt {
   id: number;
   merchantId: number;
   merchant: string;
+  currency: string; // ISO-ish code, e.g. "HUF" / "EUR"
   total: number; // integer minor units
   products: Product[];
 }
@@ -49,6 +51,7 @@ function mapReceipt(r: RawReceipt): Receipt {
     id: r.ID,
     merchantId: r.MerchantID,
     merchant: r.Merchant?.Name ?? '',
+    currency: r.Currency?.Code ?? 'HUF',
     total: r.TotalAmount,
     products: (r.Products ?? []).map((p) => ({
       id: p.ID,
@@ -62,6 +65,7 @@ function mapReceipt(r: RawReceipt): Receipt {
 
 export interface ReceiptUpdateInput {
   total_amount: number;
+  currency: string;
   products: { name: string; price: number }[];
 }
 

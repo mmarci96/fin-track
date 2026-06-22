@@ -44,6 +44,16 @@ db-drop:
 
 # db-reset: db-drop db-shcema
 IMGS = IMG_0955.jpeg IMG_0961.jpeg IMG_0962.jpeg IMG_0963.jpeg IMG_0964.jpeg IMG_0967.jpeg IMG_0971.jpeg
+OTPR_IMGS = IMG_0975.jpeg IMG_0974.jpeg IMG_0973.jpeg IMG_0972.jpeg
+
+test-otpr-imgs:
+	@echo "Sending otp restaurant receipts..."
+	@for img in $(OTPR_IMGS); do \
+		echo "Sending $$img..."; \
+		curl -X POST \
+			-F "image=$(IMG_PATH)/$$img" \
+			http://localhost:8080/api/receipts/image; \
+		done
 
 test-all-img:
 	@echo "Sending all images..."

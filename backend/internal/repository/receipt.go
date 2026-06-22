@@ -8,13 +8,35 @@ import (
 	"github.com/mmarci96/fin-track/internal/model"
 )
 
+// resolveCurrency looks up a currency by its code, defaulting to HUF when no
+// code is supplied (e.g. the OCR create path, which never detects a currency).
+func (db *Database) resolveCurrency(code string) (model.Currency, error) {
+	if code == "" {
+		code = "HUF"
+	}
+
+	cur := model.Currency{Code: code}
+	err := db.DB.QueryRow(`SELECT id FROM currencies WHERE code = $1`, code).Scan(&cur.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return cur, apperr.BadRequest("unknown currency: "+code, errors.Wrapf(err, "currency code=%q", code))
+	}
+	return cur, errors.Wrapf(err, "query currency code=%q", code)
+}
+
 func (db *Database) CreateReceipt(receipt *model.Receipt) error {
-	// Insert receipt and return the generated ID
-	err := db.DB.QueryRow(`
-		INSERT INTO receipts (user_id, merchant_id, total_amount)
-		VALUES ($1, $2, $3)
+	cur, err := db.resolveCurrency(receipt.Currency.Code)
+	if err != nil {
+		return err
+	}
+	receipt.Currency = cur
+
+	// Insert receipt and return the generated ID. Currency lives on the
+	// receipt; products inherit it.
+	err = db.DB.QueryRow(`
+		INSERT INTO receipts (user_id, merchant_id, currency_id, total_amount)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id
-	`, receipt.UserID, receipt.MerchantID, receipt.TotalAmount).Scan(&receipt.ID)
+	`, receipt.UserID, receipt.MerchantID, cur.ID, receipt.TotalAmount).Scan(&receipt.ID)
 	if err != nil {
 		return errors.Wrapf(err, "insert receipt user_id=%d merchant_id=%d", receipt.UserID, receipt.MerchantID)
 	}
@@ -57,9 +79,12 @@ func (db *Database) GetReceiptByID(id, userID int) (*model.Receipt, error) {
 			r.user_id,
 			r.total_amount,
 			r.merchant_id,
-			m.name
+			m.name,
+			cur.id,
+			cur.code
 		FROM receipts r
 		JOIN merchants m ON r.merchant_id = m.id
+		JOIN currencies cur ON r.currency_id = cur.id
 		WHERE r.id = $1 AND r.user_id = $2
 	`, id, userID).Scan(
 		&receipt.ID,
@@ -67,6 +92,8 @@ func (db *Database) GetReceiptByID(id, userID int) (*model.Receipt, error) {
 		&receipt.TotalAmount,
 		&receipt.Merchant.ID,
 		&receipt.Merchant.Name,
+		&receipt.Currency.ID,
+		&receipt.Currency.Code,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, apperr.NotFound("receipt not found", errors.Wrapf(err, "receipt id=%d user_id=%d", id, userID))
@@ -126,13 +153,20 @@ func (db *Database) UpdateReceiptByID(
 	id, userID int,
 	receipt *model.Receipt,
 ) error {
-	// Update receipt total amount, scoped to the owning user. A zero row count
-	// means the receipt either does not exist or belongs to another user.
+	cur, err := db.resolveCurrency(receipt.Currency.Code)
+	if err != nil {
+		return err
+	}
+	receipt.Currency = cur
+
+	// Update receipt total amount and currency, scoped to the owning user. A
+	// zero row count means the receipt either does not exist or belongs to
+	// another user.
 	res, err := db.DB.Exec(`
 		UPDATE receipts
-		SET total_amount = $1
-		WHERE id = $2 AND user_id = $3
-	`, receipt.TotalAmount, id, userID)
+		SET total_amount = $1, currency_id = $2
+		WHERE id = $3 AND user_id = $4
+	`, receipt.TotalAmount, cur.ID, id, userID)
 	if err != nil {
 		return errors.Wrapf(err, "update receipt id=%d", id)
 	}
@@ -233,10 +267,14 @@ func (db *Database) GetAllReceipts(userID int) ([]model.Receipt, error) {
 			r.user_id,
 			r.total_amount,
 			m.id,
-			m.name
+			m.name,
+			cur.id,
+			cur.code
 		FROM receipts r
 		JOIN merchants m
 			ON r.merchant_id = m.id
+		JOIN currencies cur
+			ON r.currency_id = cur.id
 		WHERE r.user_id = $1
 		ORDER BY r.created_at DESC
 	`, userID)
@@ -246,6 +284,7 @@ func (db *Database) GetAllReceipts(userID int) ([]model.Receipt, error) {
 	defer rows.Close()
 
 	var receipts []model.Receipt
+	index := make(map[int]int) // receipt id -> position in receipts
 
 	for rows.Next() {
 		var receipt model.Receipt
@@ -256,14 +295,49 @@ func (db *Database) GetAllReceipts(userID int) ([]model.Receipt, error) {
 			&receipt.TotalAmount,
 			&receipt.Merchant.ID,
 			&receipt.Merchant.Name,
+			&receipt.Currency.ID,
+			&receipt.Currency.Code,
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "scan receipt")
 		}
 		receipt.MerchantID = receipt.Merchant.ID
 
+		index[receipt.ID] = len(receipts)
 		receipts = append(receipts, receipt)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "iterate receipts")
+	}
+	rows.Close()
 
-	return receipts, errors.Wrap(rows.Err(), "iterate receipts")
+	if len(receipts) == 0 {
+		return receipts, nil
+	}
+
+	// Attach products for all the user's receipts in one query so the list view
+	// can show item counts (categories are omitted; the detail view loads those).
+	prodRows, err := db.DB.Query(`
+		SELECT p.receipt_id, p.id, p.name, p.price
+		FROM products p
+		JOIN receipts r ON p.receipt_id = r.id
+		WHERE r.user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, errors.Wrap(err, "query receipt products")
+	}
+	defer prodRows.Close()
+
+	for prodRows.Next() {
+		var receiptID int
+		var product model.Product
+		if err := prodRows.Scan(&receiptID, &product.ID, &product.Name, &product.Price); err != nil {
+			return nil, errors.Wrap(err, "scan receipt product")
+		}
+		if i, ok := index[receiptID]; ok {
+			receipts[i].Products = append(receipts[i].Products, product)
+		}
+	}
+
+	return receipts, errors.Wrap(prodRows.Err(), "iterate receipt products")
 }

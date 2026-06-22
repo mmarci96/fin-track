@@ -7,7 +7,11 @@
 // with an optional LLM fallback when heuristics are not confident.
 package receipt
 
-import "context"
+import (
+	"context"
+
+	"github.com/mmarci96/fin-track/internal/model"
+)
 
 // Item is a single line item on the receipt.
 type Item struct {
@@ -39,16 +43,16 @@ const (
 
 // Result is the structured output of parsing.
 type Result struct {
-	MerchantName  string   `json:"merchant_name"`
-	MerchantKnown bool     `json:"merchant_known"`
-	Items         []Item   `json:"items"`
-	Total         int      `json:"total"`          // printed total, 0 if not found
-	ComputedTotal int      `json:"computed_total"` // sum of item prices
-	Reconciled    bool     `json:"reconciled"`
-	Confidence    float64  `json:"confidence"`
-	Decision      Decision `json:"decision"`
-	Warnings      []string `json:"warnings,omitempty"`
-	Currency      string   `json:"currency"`
+	MerchantName  string         `json:"merchant_name"`
+	MerchantKnown bool           `json:"merchant_known"`
+	Items         []Item         `json:"items"`
+	Total         int            `json:"total"`          // printed total, 0 if not found
+	ComputedTotal int            `json:"computed_total"` // sum of item prices
+	Reconciled    bool           `json:"reconciled"`
+	Confidence    float64        `json:"confidence"`
+	Decision      Decision       `json:"decision"`
+	Warnings      []string       `json:"warnings,omitempty"`
+	Currency      model.Currency `json:"currency"`
 }
 
 // LLMFallback extracts items from OCR text when heuristics are not confident.

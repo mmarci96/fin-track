@@ -27,6 +27,26 @@ func (db *Database) CreateCategory(name string) (*model.Category, error) {
 	return cat, nil
 }
 
+func (db *Database) GetAllCurrencies() ([]model.Currency, error) {
+	rows, err := db.DB.Query(`
+		SELECT id, code 
+		FROM currencies 
+	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "query currencies")
+	}
+	defer rows.Close()
+	var currencies []model.Currency
+	for rows.Next() {
+		var ccy model.Currency
+		if err := rows.Scan(&ccy.ID, &ccy.Code); err != nil {
+			return nil, errors.Wrap(err, "scan currencies")
+		}
+		currencies = append(currencies, ccy)
+	}
+	return currencies, errors.Wrap(rows.Err(), "iterate currencies")
+}
+
 func (db *Database) GetAllCategories() ([]model.Category, error) {
 	rows, err := db.DB.Query(`
 		SELECT id, name

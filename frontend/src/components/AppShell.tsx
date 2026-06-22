@@ -19,11 +19,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const immersive = pathname === '/scan';
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col">
+    <div className="mx-auto flex min-h-full w-full max-w-md flex-col md:max-w-2xl lg:max-w-3xl">
       <main className={cn('flex-1', immersive ? '' : 'pb-20')}>{children}</main>
 
       {!immersive && (
-        <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-center justify-around border-t border-border bg-card/95 backdrop-blur">
+        <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md items-center justify-around border-t border-border bg-card/95 backdrop-blur md:max-w-2xl lg:max-w-3xl">
           {tabs.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
