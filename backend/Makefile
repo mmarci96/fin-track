@@ -45,6 +45,15 @@ db-drop:
 # db-reset: db-drop db-shcema
 IMGS = IMG_0955.jpeg IMG_0961.jpeg IMG_0962.jpeg IMG_0963.jpeg IMG_0964.jpeg IMG_0967.jpeg IMG_0971.jpeg
 OTPR_IMGS = IMG_0975.jpeg IMG_0974.jpeg IMG_0973.jpeg IMG_0972.jpeg
+RECEIPT_ID = 5
+
+test-categorize:
+	@echo "Testing categorize with receipt id $(RECEIPT_ID)"
+	curl -X POST http://localhost:8080/api/receipts/$(RECEIPT_ID)/categorize;
+
+test-default:
+	@echo "Testing with sample image IMG_0955.jpeg"
+	curl -X POST -F "image=$(IMG_PATH)/IMG_0955.jpeg" http://localhost:8080/api/receipts/image;
 
 test-otpr-imgs:
 	@echo "Sending otp restaurant receipts..."

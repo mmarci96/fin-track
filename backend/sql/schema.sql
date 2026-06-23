@@ -51,6 +51,28 @@ CREATE TABLE categories (
     name TEXT NOT NULL UNIQUE
 );
 
+INSERT INTO categories (name) VALUES 
+    ('Food'), 
+    ('Healthy'),
+    ('Fastfood'),
+    ('Clothing'),
+    ('Housekeeping'),
+    ('Drugs'),
+    ('Alcohol'),
+    ('Tobacco'),
+    ('Electronics'),
+    ('Entertainment'),
+    ('Going out'),
+    ('Transportation'),
+    ('Travel'),
+    ('Gifts'),
+    ('Beauty'),
+    ('Sports'),
+    ('Education'),
+    ('Home'),
+    ('Other');
+
+
 CREATE TABLE product_categories (
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,

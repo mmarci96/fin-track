@@ -26,14 +26,15 @@ func SetupRouter(
 
 	extractor := ollamapkg.NewItemExtractor(ollama, cfg.OllamaModel)
 	imageHandler := handler.NewImageHandler(db, extractor)
-	receiptHandler := handler.NewReceiptHandler(db)
+	receiptHandler := handler.NewReceiptHandler(db, ollama)
 	merchantHandler := handler.NewMerchantHandler(db)
-	categoryHandler := handler.NewCategoryHandler(db)
+	categoryHandler := handler.NewCategoryHandler(db, ollama)
 
 	api := r.Group("/api")
 
 	receipts := api.Group("/receipts")
 	{
+		receipts.POST("/:id/categorize", receiptHandler.CategorizeReceiptItems)
 		receipts.POST("/image", imageHandler.OCR)
 		receipts.POST("", receiptHandler.Create)
 		receipts.GET("", receiptHandler.List)
@@ -62,6 +63,7 @@ func SetupRouter(
 
 	products := api.Group("/products")
 	{
+		products.PUT("/:id/categories/ai", categoryHandler.CategorizeProductById)
 		products.POST("/:id/categories", categoryHandler.Assign)
 		products.DELETE("/:id/categories/:cid", categoryHandler.Unassign)
 	}
