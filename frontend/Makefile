@@ -15,10 +15,10 @@ PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.48.0-noble
 ## start: build the UI image and run UI + Traefik on the backend network
 start: network image ui-start traefik-start
 	@echo ""
-	@echo "  UI:               http://localhost:$(WEB_PORT)"
+	@echo "  UI:                http://localhost:$(WEB_PORT)"
 	@echo "  Traefik dashboard: http://localhost:$(DASHBOARD_PORT)"
 
-restart: kill start
+reset: kill start
 
 image:
 	docker build -t $(IMAGE) .

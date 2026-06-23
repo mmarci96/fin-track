@@ -1,4 +1,4 @@
-# fin-track app specific configs
+# App specific configs
 APP_NAME ?= fin-track
 APP_VERSION ?= 0.0.0-dev
 HOST ?= 0.0.0.0
@@ -11,8 +11,12 @@ OLLAMA_HOST ?= $(OLLAMA_APP_NAME)
 OLLAMA_PORT ?= 11434
 LOG_LEVEL ?= DEBUG
 RUNTIME_ENV ?= DEBUG
+OLLAMA_IMAGE ?= ollama/ollama
+OLLAMA_VERSION ?= latest
 
 #DB
+DB_IMAGE ?= postgres
+DB_VERSION ?= 17
 DB_NAME ?= fin-track-db
 DB_HOST ?= $(DB_NAME)
 DB_PORT ?= 5432
@@ -22,30 +26,17 @@ DB_DATA_DOCKER_VOL ?= postgres_data
 
 # Testing
 IMG_PATH ?= @$(shell pwd)/data
-# IMG_0955.jpeg
-PHONY:$(MAKECMDGOALS)
-
-all: ollama-kill db-kill db-start ollama-start image start
-
-	# docker cp ./schema.sql $(DB_NAME):/tmp/schema.sql
-db-schema:	
-	docker exec -i $(DB_NAME) \
-		psql \
-		-U $(DB_USER) \
-		-d $(DB_NAME) \
-		-f - < sql/schema.sql
-
-db-drop:
-	docker exec -i $(DB_NAME) \
-		psql \
-		-U $(DB_USER) \
-		-d $(DB_NAME) \
-		-f - < sql/drop.sql
-
-# db-reset: db-drop db-shcema
 IMGS = IMG_0955.jpeg IMG_0961.jpeg IMG_0962.jpeg IMG_0963.jpeg IMG_0964.jpeg IMG_0967.jpeg IMG_0971.jpeg
 OTPR_IMGS = IMG_0975.jpeg IMG_0974.jpeg IMG_0973.jpeg IMG_0972.jpeg
 RECEIPT_ID = 5
+
+PHONY:$(MAKECMDGOALS)
+
+start: ollama-kill db-kill kill db-start ollama-start image db-schema app-start
+
+kill: ollama-kill db-kill app-kill
+
+reset: db-drop kill start 
 
 test-categorize:
 	@echo "Testing categorize with receipt id $(RECEIPT_ID)"
@@ -72,15 +63,6 @@ test-all-img:
 			-F "image=$(IMG_PATH)/$$img" \
 			http://localhost:8080/api/receipts/image; \
 		done
-
-test-bad-img-to-ocr:
-	@echo "Sending poor quality images..."
-	-curl -X POST \
-		-F "image=$(IMG_PATH)/IMG_0961.jpeg" \
-		http://localhost:8080/api/receipts/image 
-	-curl -X POST \
-		-F "image=$(IMG_PATH)/IMG_0962.jpeg" \
-		http://localhost:8080/api/receipts/image
 
 test-ocr:
 	-curl -X POST \
@@ -113,12 +95,10 @@ dev-start: kill dev-image
 		$(APP_NAME)-dev:latest \
 		 -c /tmp/fin-track-src/.air.toml
 
-
 image:
 	docker build -t $(APP_NAME):$(APP_VERSION) .
 
-
-start: create-network kill
+app-start: create-network kill
 	docker run  -d \
 		--name $(APP_NAME) \
 		--network $(NETWORK) \
@@ -134,11 +114,8 @@ start: create-network kill
 		-e DB_PASSWORD=$(DB_PASSWORD) \
 		$(APP_NAME):$(APP_VERSION)
 
-kill:
+app-kill:
 	-docker rm -f $(APP_NAME)
-
-create-network:
-	-docker network create $(NETWORK)
 
 ollama-start: create-network
 	docker run --rm -d \
@@ -148,13 +125,11 @@ ollama-start: create-network
 		-v ollama_models:/root/.ollama \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \
 		-e OLLAMA_PORT=$(OLLAMA_PORT) \
-		ollama/ollama:latest
-
+		$(OLLAMA_IMAGE):$(OLLAMA_VERSION)
 
 ollama-kill:
 	-docker kill $(OLLAMA_APP_NAME)
 	-docker rm -f $(OLLAMA_APP_NAME)
-
 
 db-start: create-network
 	docker run -d --rm \
@@ -165,9 +140,25 @@ db-start: create-network
 		-e POSTGRES_PASSWORD=$(DB_PASSWORD) \
 		-e POSTGRES_DB=$(DB_NAME) \
 		-v $(DB_DATA_DOCKER_VOL)=/var/lib/postgresql \
-		postgres:17 
-
+		$(DB_IMAGE):$(DB_VERSION)
 
 db-kill:
 	-docker kill $(DB_NAME)
+
+db-schema:	
+	-docker exec -i $(DB_NAME) \
+		psql \
+		-U $(DB_USER) \
+		-d $(DB_NAME) \
+		-f - < sql/schema.sql
+
+db-drop:
+	-docker exec -i $(DB_NAME) \
+		psql \
+		-U $(DB_USER) \
+		-d $(DB_NAME) \
+		-f - < sql/drop.sql
+
+create-network:
+	-docker network create $(NETWORK)
 
