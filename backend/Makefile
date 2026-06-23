@@ -32,7 +32,7 @@ RECEIPT_ID = 5
 
 PHONY:$(MAKECMDGOALS)
 
-start: ollama-kill db-kill kill db-start ollama-start image db-schema app-start
+start: ollama-kill db-kill kill db-start ollama-start  db-schema image app-start
 
 kill: ollama-kill db-kill app-kill
 
@@ -78,10 +78,10 @@ dev-image:
 dev-start: kill dev-image
 	docker run  -it --rm \
 		--name $(APP_NAME) \
+		-p $(PORT):$(PORT) \
 		--network $(NETWORK) \
 		-v $(shell pwd):/tmp/fin-track-src \
 		-v go-mod-cache:/go/pkg/mod \
-		-p $(PORT):$(PORT) \
 		-e HOST=$(HOST) \
 		-e PORT=$(PORT) \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \
@@ -98,11 +98,11 @@ dev-start: kill dev-image
 image:
 	docker build -t $(APP_NAME):$(APP_VERSION) .
 
-app-start: create-network kill
+app-start: create-network app-kill
 	docker run  -d \
 		--name $(APP_NAME) \
-		--network $(NETWORK) \
 		-p $(PORT):$(PORT) \
+		--network $(NETWORK) \
 		-e HOST=$(HOST) \
 		-e PORT=$(PORT) \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \
@@ -117,11 +117,12 @@ app-start: create-network kill
 app-kill:
 	-docker rm -f $(APP_NAME)
 
+
+#-p $(OLLAMA_PORT):$(OLLAMA_PORT) 
 ollama-start: create-network
 	docker run --rm -d \
 		--name $(OLLAMA_APP_NAME) \
 		--network $(NETWORK) \
-		-p $(OLLAMA_PORT):$(OLLAMA_PORT) \
 		-v ollama_models:/root/.ollama \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \
 		-e OLLAMA_PORT=$(OLLAMA_PORT) \
@@ -131,10 +132,11 @@ ollama-kill:
 	-docker kill $(OLLAMA_APP_NAME)
 	-docker rm -f $(OLLAMA_APP_NAME)
 
+
+#-p "$(DB_PORT):5432" 
 db-start: create-network
 	docker run -d --rm \
 		--network $(NETWORK) \
-		-p "$(DB_PORT):5432" \
 		--name $(DB_NAME) \
 		-e POSTGRES_USER=$(DB_USER) \
 		-e POSTGRES_PASSWORD=$(DB_PASSWORD) \

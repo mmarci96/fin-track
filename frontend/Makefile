@@ -36,9 +36,12 @@ traefik-start: kill-traefik
 	docker run -d \
 		--name $(TRAEFIK_NAME) \
 		--network $(NETWORK) \
+		--network cloudflare \
 		-p $(WEB_PORT):80 \
 		-p $(DASHBOARD_PORT):8080 \
-		-v $(CURDIR)/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro \
+		-v $(CURDIR)/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro,Z \
+		-v $(CURDIR)/traefik/traefik.yml:/etc/traefik/traefik.yml:Z \
+		-v $(PWD)/traefik/traefikauth:/plugins-local/src/github.com/mmarci96/traefikauth:Z \
 		traefik:v3 \
 		--entrypoints.web.address=:80 \
 		--api.dashboard=true \
@@ -76,3 +79,18 @@ e2e:
 		-w /work \
 		$(PLAYWRIGHT_IMAGE) \
 		sh -c "npm install --no-audit --no-fund && npx playwright test"
+
+auth-service-kill:
+	-docker rm -f auth-service
+
+auth-service-run: auth-service-kill
+	docker run -d \
+		--name auth-service \
+		--network $(NETWORK) \
+		-p 8081:8000 \
+		-v $(PWD)/traefik/auth-service:/app \
+		-w /app \
+		python:3.11-slim \
+		sh -c "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+
