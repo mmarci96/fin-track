@@ -38,11 +38,15 @@ func (s *Service) Generate(
 	ctx context.Context,
 	reqBody model.GenerateRequest,
 ) (*model.GenerateResponse, error) {
+	s.logger.Debug("Generate called")
 
 	body, err := json.Marshal(reqBody)
 	if err != nil {
+		s.logger.Debug("failed to marshal generate request", slog.String("err", err.Error()))
 		return nil, errors.Wrap(err, "marshal generate request")
 	}
+
+	s.logger.Debug("marshaled generate request", slog.Int("body_len", len(body)))
 
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -51,22 +55,32 @@ func (s *Service) Generate(
 		bytes.NewReader(body),
 	)
 	if err != nil {
+		s.logger.Debug("failed to build generate request", slog.String("err", err.Error()))
 		return nil, errors.Wrap(err, "build generate request")
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
+	s.logger.Debug("built generate http request", slog.String("method", http.MethodPost), slog.String("url", s.baseURL+"/api/generate"))
+	s.logger.Debug("sending generate request")
+
 	resp, err := s.client.Do(req)
 	if err != nil {
+		s.logger.Debug("request failed", slog.String("err", err.Error()))
 		return nil, errors.Wrap(err, "call ollama generate")
 	}
 	defer resp.Body.Close()
 
+	s.logger.Debug("received generate response", slog.Int("status", resp.StatusCode))
+
 	var out model.GenerateResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		s.logger.Debug("failed to decode generate response", slog.String("err", err.Error()))
 		return nil, errors.Wrap(err, "decode generate response")
 	}
+
+	s.logger.Debug("successfully decoded generate response", slog.Int("status", resp.StatusCode))
 
 	return &out, nil
 }

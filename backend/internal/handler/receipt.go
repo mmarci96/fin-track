@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/cockroachdb/errors"
 	"github.com/gin-gonic/gin"
@@ -10,16 +11,18 @@ import (
 	"github.com/mmarci96/fin-track/internal/httpx"
 	"github.com/mmarci96/fin-track/internal/model"
 	"github.com/mmarci96/fin-track/internal/repository"
+	"github.com/mmarci96/fin-track/internal/service/ollama"
 )
 
 // ReceiptHandler serves the non-OCR receipt CRUD endpoints. All operations are
 // scoped to the acting user from the request context.
 type ReceiptHandler struct {
 	db *repository.Database
+	ollama *ollama.Service
 }
 
-func NewReceiptHandler(db *repository.Database) *ReceiptHandler {
-	return &ReceiptHandler{db: db}
+func NewReceiptHandler(db *repository.Database, ollama *ollama.Service) *ReceiptHandler {
+	return &ReceiptHandler{db: db, ollama: ollama}
 }
 
 type productInput struct {
@@ -55,6 +58,47 @@ func parseIDParam(c *gin.Context, name string) (int, error) {
 		return 0, apperr.BadRequest("invalid "+name, errors.Wrapf(err, "parse %s", name))
 	}
 	return id, nil
+}
+
+func (h *ReceiptHandler) CategorizeReceiptItems(c *gin.Context) {
+		id, err := parseIDParam(c, "id")
+	if err != nil {
+		httpx.Respond(c, err)
+		return
+	}
+	userID := httpx.UserIDFromContext(c.Request.Context())
+
+	receipt, err := h.db.GetReceiptByID(id, userID)
+	if err != nil {
+		httpx.Respond(c, err)
+		return
+	}
+	
+	items := receipt.Products
+	
+	availableCategories, err := h.db.GetAllCategories()
+	if err != nil {
+		httpx.Respond(c, err)
+		return
+	}
+	categoryNames := make([]string, len(availableCategories))
+	for i, category := range availableCategories {
+		categoryNames[i] = category.Name
+	}
+	reuslts := make([]model.GenerateResponse, 0, len(items))
+	for _, item := range items {
+		prompt := "Ezek kozul a kategoriak kozul: " + strings.Join(categoryNames, ", ") + ". -> Valaszd ki melyik kategoriakba tartozik (tobb is valaszthato): " + item.Name
+		res, err := h.ollama.Generate(c, model.GenerateRequest{Model: "qwen3:1.7b", Prompt: prompt, Think: false})
+		if err != nil {
+			httpx.Respond(c,err)
+		}
+		reuslts = append(reuslts, *res)
+	}
+
+	if err != nil {
+		httpx.Respond(c,err)
+	}
+	c.JSON(http.StatusOK, gin.H{"result": reuslts})
 }
 
 func (h *ReceiptHandler) Create(c *gin.Context) {
