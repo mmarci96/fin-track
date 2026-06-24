@@ -61,6 +61,10 @@ func NotFound(public string, cause error) *AppError {
 	return newAppError("NOT_FOUND", http.StatusNotFound, public, cause)
 }
 
+func Unauthorized(public string, cause error) *AppError {
+	return newAppError("UNAUTHORIZED", http.StatusUnauthorized, public, cause)
+}
+
 func Internal(public string, cause error) *AppError {
 	return newAppError("INTERNAL", http.StatusInternalServerError, public, cause)
 }

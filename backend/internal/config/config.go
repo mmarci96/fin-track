@@ -20,8 +20,14 @@ type AppConfig struct {
 	LogLevel   string `env:"LOG_LEVEL" envDefault:"DEBUG"`
 	RuntimeEnv string `env:"RUNTIME_ENV" envDefault:"dev"`
 
-	// Default user assigned to receipts when the uploader is not authenticated.
+	// Default user assigned to receipts when no X-User-ID header is present and
+	// RequireUserID is false (local dev hitting the backend directly).
 	DefaultUserID int `env:"DEFAULT_USER_ID" envDefault:"1"`
+
+	// RequireUserID rejects requests that arrive without a valid X-User-ID
+	// header instead of falling back to DefaultUserID. Set true behind the auth
+	// edge (UAT/prod) so the backend never invents an identity.
+	RequireUserID bool `env:"REQUIRE_USER_ID" envDefault:"false"`
 
 	// DB connection and values
 	DbHost     string `env:"DB_HOST"`
@@ -41,6 +47,7 @@ func (c *AppConfig) DatabaseURL() string {
 		c.DbName,
 	)
 }
+
 func NewConfig(options ...func(*AppConfig)) *AppConfig {
 	var cfg AppConfig
 	err := env.Parse(&cfg)

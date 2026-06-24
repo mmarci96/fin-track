@@ -22,7 +22,7 @@ func SetupRouter(
 	r.Use(httpx.RequestID())
 	r.Use(httpx.Recovery())
 	r.Use(httpx.AccessLog())
-	r.Use(httpx.UserID(cfg.DefaultUserID))
+	r.Use(httpx.UserID(cfg.DefaultUserID, cfg.RequireUserID))
 
 	extractor := ollamapkg.NewItemExtractor(ollama, cfg.OllamaModel)
 	imageHandler := handler.NewImageHandler(db, extractor)
