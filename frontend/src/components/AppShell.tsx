@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { Receipt, Camera, BarChart3, Settings } from 'lucide-react';
+import { Receipt, Camera, BarChart3, Settings, Bug } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const tabs = [
@@ -8,6 +8,10 @@ const tabs = [
   { to: '/scan', label: 'Scan', icon: Camera, end: false },
   { to: '/statistics', label: 'Stats', icon: BarChart3, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
+  // Dev-only developer viewer (the route itself is also dev-gated in App.tsx).
+  ...(import.meta.env.DEV
+    ? [{ to: '/debug', label: 'Debug', icon: Bug, end: false }]
+    : []),
 ];
 
 /**
