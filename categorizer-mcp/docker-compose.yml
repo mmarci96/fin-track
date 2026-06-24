@@ -1,0 +1,71 @@
+# All-in-one portable bundle: the categorizer + its own Ollama (with a one-shot
+# model puller). Only Postgres is external — point DATABASE_URL at your backend DB.
+#
+#   cp .env.example .env     # set DATABASE_URL (+ models if you want)
+#   make up                  # pulls models, starts ollama + categorizer
+#   curl localhost:8090/health
+name: categorizer
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: categorizer-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # GPU: install nvidia-container-toolkit on the host and uncomment.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
+  # Pulls the combo models into the shared volume, then exits. Re-run with
+  # `make pull-models` after changing CATEGORIZE_PULL_MODELS.
+  model-puller:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+      MODELS: ${CATEGORIZE_PULL_MODELS:-qwen3:1.7b qwen3:4b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['for m in $$MODELS; do echo "pulling $$m"; ollama pull "$$m"; done']
+    restart: "no"
+
+  categorizer:
+    image: ${IMAGE:-mmarci96/categorizer-mcp}:${TAG:-latest}
+    build: .
+    container_name: categorizer-mcp
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "${MCP_PORT:-8090}:8090"
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8090
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: 11434
+      CATEGORIZE_CHAT_MODEL: ${CATEGORIZE_CHAT_MODEL:-qwen3:1.7b}
+      CATEGORIZE_DECIDE_MODEL: ${CATEGORIZE_DECIDE_MODEL:-qwen3:4b}
+      CATEGORIZE_DEADLINE: ${CATEGORIZE_DEADLINE:-600}
+      # External Postgres (the backend's DB). Must be reachable from this container.
+      DATABASE_URL: ${DATABASE_URL}
+    restart: unless-stopped
+
+# To reach a Postgres that lives on another compose project's network, attach this
+# service to it, e.g.:
+#   networks: [default, fin-track]
+# networks:
+#   fin-track:
+#     external: true
+
+volumes:
+  ollama_models:

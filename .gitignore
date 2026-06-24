@@ -9,7 +9,6 @@
 *.dylib
 *.logs
 *.txt
-categorizer-mcp/
 .secret
 
 # Test binary, built with `go test -c`
