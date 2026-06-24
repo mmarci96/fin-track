@@ -1,0 +1,20 @@
+# Traefik dynamic config (file provider). This file now owns ONLY the shared
+# auth middleware — routers and services are discovered from container labels
+# via the Docker provider (see traefik.yml). The middleware lives here, not on a
+# label, because it carries the JWT secret.
+#
+# Routers reference it as `auth-middleware@file` (the `@file` suffix points the
+# label-defined router at this file-provider middleware). Live routing:
+#   /login,/logout,/verify,/healthz -> auth-service container (port 8000, no auth)
+#   /api/*                          -> backend container  (`fin-track`, 8080)
+#   /*                              -> frontend container  (`fin-track-ui`, 80)
+http:
+  middlewares:
+    auth-middleware:
+      plugin:
+        traefikauth:
+          # Both values are templated from the edge container's environment
+          # (set via traefik/.env -> docker run -e). Keeps the secret and the
+          # real hostname out of version control.
+          jwtSecret: '{{ env "JWT_SECRET" }}'
+          loginURL: 'https://{{ env "PUBLIC_HOSTNAME" }}/login'

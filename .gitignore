@@ -50,5 +50,8 @@ test-results/
 # .idea/
 # .vscode/
 .claude/
-# frontend/traefik/auth-service/
-traefik
+# Traefik edge: the config under traefik/ IS tracked. Only the real secrets and
+# runtime state stay out (.env and .secret are also covered by the rules above).
+traefik/.env
+traefik/.secret
+traefik/traefik-home/

@@ -1,0 +1,25 @@
+api:
+  insecure: true
+entryPoints:
+  web:
+    address: ":80"
+providers:
+  # File provider still owns the traefikauth middleware definition (it carries
+  # the JWT secret). Routers/services now come from container labels instead.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+  # Docker provider reads container labels to build routers/services dynamically.
+  # It talks to docker-socket-proxy over the network, NOT the raw socket — the
+  # internet-facing edge never gets direct Docker API access. exposedByDefault
+  # is off so only containers with `traefik.enable=true` are routed.
+  docker:
+    endpoint: "tcp://docker-socket-proxy:2375"
+    exposedByDefault: false
+    network: fin-track
+    watch: true
+experimental:
+  localPlugins:
+    traefikauth:
+      moduleName: github.com/mmarci96/traefikauth
+

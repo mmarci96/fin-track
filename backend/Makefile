@@ -5,6 +5,11 @@ HOST ?= 0.0.0.0
 PORT ?= 8080
 NETWORK ?= fin-track
 
+# Public hostname for the cloudflare smoke-test target. Sourced from the
+# gitignored traefik/.env so the real hostname never lands in version control.
+# Override ad hoc with: make test-all-img-cloudflare PUBLIC_HOSTNAME=host
+-include ../traefik/.env
+
 # Ollama env
 OLLAMA_APP_NAME ?= ollama-app 
 OLLAMA_HOST ?= $(OLLAMA_APP_NAME)
@@ -70,7 +75,7 @@ test-all-img-cloudflare:
 		echo "Sending $$img..."; \
 		curl -X POST \
 			-F "image=$(IMG_PATH)/$$img" \
-			https://www.959353d1958446d49b91832e0d8e21fa.online/api/receipts/image; \
+			https://$(PUBLIC_HOSTNAME)/api/receipts/image; \
 		done
 
 test-ocr:
@@ -112,6 +117,13 @@ app-start: create-network app-kill
 		--name $(APP_NAME) \
 		-p $(PORT):$(PORT) \
 		--network $(NETWORK) \
+		--label 'traefik.enable=true' \
+		--label 'traefik.http.routers.api.rule=PathPrefix(`/api`)' \
+		--label 'traefik.http.routers.api.entrypoints=web' \
+		--label 'traefik.http.routers.api.priority=100' \
+		--label 'traefik.http.routers.api.middlewares=auth-middleware@file' \
+		--label 'traefik.http.routers.api.service=backend' \
+		--label 'traefik.http.services.backend.loadbalancer.server.port=$(PORT)' \
 		-e HOST=$(HOST) \
 		-e PORT=$(PORT) \
 		-e OLLAMA_HOST=$(OLLAMA_HOST) \

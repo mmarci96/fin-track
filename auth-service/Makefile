@@ -63,6 +63,12 @@ start: kill
 		--name $(APP_NAME) \
 		--network $(NETWORK) \
 		-p $(HOST_PORT):$(PORT) \
+		--label 'traefik.enable=true' \
+		--label 'traefik.http.routers.auth-service.rule=PathPrefix(`/login`) || PathPrefix(`/logout`) || PathPrefix(`/verify`) || PathPrefix(`/healthz`)' \
+		--label 'traefik.http.routers.auth-service.entrypoints=web' \
+		--label 'traefik.http.routers.auth-service.priority=200' \
+		--label 'traefik.http.routers.auth-service.service=auth-service' \
+		--label 'traefik.http.services.auth-service.loadbalancer.server.port=$(PORT)' \
 		-e AUTH_PORT=$(PORT) \
 		-e JWT_SECRET=$(JWT_SECRET) \
 		-e DB_HOST=$(DB_HOST) \

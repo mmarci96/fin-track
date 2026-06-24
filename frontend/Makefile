@@ -25,6 +25,13 @@ ui-start: kill
 	docker run -d \
 		--name $(APP_NAME) \
 		--network $(NETWORK) \
+		--label 'traefik.enable=true' \
+		--label 'traefik.http.routers.web.rule=PathPrefix(`/`)' \
+		--label 'traefik.http.routers.web.entrypoints=web' \
+		--label 'traefik.http.routers.web.priority=1' \
+		--label 'traefik.http.routers.web.middlewares=auth-middleware@file' \
+		--label 'traefik.http.routers.web.service=frontend' \
+		--label 'traefik.http.services.frontend.loadbalancer.server.port=$(WEB_PORT)' \
 		$(IMAGE)
 
 kill:

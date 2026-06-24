@@ -1,0 +1,12 @@
+# Copy this file to `.env` and fill in real values. `.env` is gitignored, so
+# nothing here ends up in the public repo.
+#
+#   cp dotenv.example .env && $EDITOR .env
+
+# Shared HS256 secret for the traefikauth plugin. MUST match the auth-service
+# JWT_SECRET. Generate one with: openssl rand -hex 32
+JWT_SECRET=change-me-shared-hs256-secret
+
+# Public hostname the edge is served on (used to build the auth login URL).
+# No scheme, no trailing slash — e.g. app.example.com
+PUBLIC_HOSTNAME=app.example.com
