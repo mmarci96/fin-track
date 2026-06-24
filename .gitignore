@@ -9,6 +9,8 @@
 *.dylib
 *.logs
 *.txt
+categorizer-mcp/
+.secret
 
 # Test binary, built with `go test -c`
 *.test
@@ -48,3 +50,5 @@ test-results/
 # .idea/
 # .vscode/
 .claude/
+# frontend/traefik/auth-service/
+traefik

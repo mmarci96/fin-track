@@ -92,6 +92,14 @@ export function Scan() {
           <Button size="lg" className="w-full" onClick={reset}>
             Retake photo
           </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full"
+            onClick={() => navigate('/expenses/new')}
+          >
+            Enter manually instead
+          </Button>
         </div>
       )}
 
@@ -102,6 +110,13 @@ export function Scan() {
             paper. We'll read the items and total automatically.
           </p>
           <CameraInput onPick={onPick} />
+          <button
+            type="button"
+            onClick={() => navigate('/expenses/new')}
+            className="text-center text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            …or enter it manually
+          </button>
         </div>
       )}
     </div>
