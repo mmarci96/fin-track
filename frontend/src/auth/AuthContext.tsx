@@ -10,13 +10,15 @@ import { USER_ID_STORAGE_KEY } from '@/lib/api';
 
 // AUTH SEAM.
 //
-// Today auth is mocked: the "identity" is just a user id that gets sent as the
-// X-User-ID header (see lib/api.ts). To switch to forced authentication later:
-//   1. set FORCE_AUTH = true so unauthenticated users are redirected to /login
-//      (RequireAuth already enforces this),
-//   2. change `login` to call POST /auth/login and store the returned token,
-//   3. change lib/api.ts authHeaders() to send `Authorization: Bearer <token>`.
-// No screen or feature code outside src/auth/ + lib/api.ts needs to change.
+// PRODUCTION auth is handled entirely by the edge: the Traefik `traefikauth`
+// plugin verifies the auth-service JWT cookie, strips any client-supplied
+// X-User-ID, and injects the trusted one. The SPA only loads for already
+// authenticated users, so it does not gate or redirect itself — FORCE_AUTH is
+// false and the manual /login route is not registered in prod builds (App.tsx).
+//
+// DEV (npm run dev, no edge) keeps a mock identity: a user id typed into the
+// dev-only /login page, sent as the X-User-ID header (see lib/api.ts). In prod
+// that header is ignored (the edge overrides it), so this is harmless there.
 
 export const FORCE_AUTH = false;
 

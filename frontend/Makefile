@@ -5,23 +5,23 @@
 #   UAT client = the built nginx image fronted by Traefik (`make start`).
 #   DEV client = the Vite dev server proxying /api to the air backend (`make dev`).
 
-APP_NAME        ?= fin-track-ui
-NETWORK         ?= fin-track
-IMAGE           ?= $(APP_NAME):latest
-WEB_PORT        ?= 80
+APP_NAME         ?= fin-track-ui
+NETWORK          ?= fin-track
+IMAGE            ?= $(APP_NAME):latest
+WEB_PORT         ?= 80
 PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.48.0-noble
 
 .PHONY: start image ui-start traefik-start network kill kill-ui kill-traefik clean dev install build e2e
 
 ## start: build the UI image and run UI + Traefik on the backend network
-start: image ui-start
+start: image start
 
 reset: kill start
 
 image:
 	docker build -t $(IMAGE) .
 
-ui-start: kill
+start: kill
 	docker run -d \
 		--name $(APP_NAME) \
 		--network $(NETWORK) \

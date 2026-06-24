@@ -8,11 +8,21 @@ import { ReceiptDetail } from '@/pages/ReceiptDetail';
 import { AddExpense } from '@/pages/AddExpense';
 import { Statistics } from '@/pages/Statistics';
 import { Settings } from '@/pages/Settings';
+import { DebugReceipts } from '@/pages/DebugReceipts';
+
+// import.meta.env.DEV is true under `npm run dev` (make dev) and false in the
+// production build `npm run build` (make start). It gates developer-only
+// affordances so they never ship in the UAT/prod image.
+const IS_DEV = import.meta.env.DEV;
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      {/* The manual user-id login is a DEV-ONLY testing affordance. Production
+          builds authenticate via the auth-service JWT cookie — which traefikauth
+          verifies and turns into the trusted X-User-ID header — so this route is
+          not registered there at all. */}
+      {IS_DEV && <Route path="/login" element={<Login />} />}
       <Route
         path="/*"
         element={
@@ -25,6 +35,10 @@ export default function App() {
                 <Route path="/statistics" element={<Statistics />} />
                 <Route path="/receipts/:id" element={<ReceiptDetail />} />
                 <Route path="/settings" element={<Settings />} />
+                {/* Developer tool: image ⟷ transcript side-by-side. Dev-only. */}
+                {IS_DEV && (
+                  <Route path="/debug" element={<DebugReceipts />} />
+                )}
               </Routes>
             </AppShell>
           </RequireAuth>

@@ -41,3 +41,21 @@ type Receipt struct {
 	ScannedAmount string
 	Currency      Currency
 }
+
+// ReceiptImage is a persisted debug upload: the original image (on disk at
+// StoredPath, under config.ImageStoreDir) plus the raw OCR transcript and the
+// parser output, optionally linked to the receipt it produced. CleanText holds
+// a later human-corrected transcript — the ground truth the recognition
+// flywheel learns from.
+type ReceiptImage struct {
+	ID           int       `json:"id"`
+	ReceiptID    *int      `json:"receipt_id"`
+	UserID       int       `json:"user_id"`
+	StoredPath   string    `json:"-"` // server-side path, never exposed
+	OriginalName string    `json:"original_name"`
+	ContentType  string    `json:"content_type"`
+	OCRText      string    `json:"ocr_text"`
+	CleanText    *string   `json:"clean_text"`
+	ParseJSON    []byte    `json:"parse,omitempty"` // raw receipt.Result JSON
+	CreatedAt    time.Time `json:"created_at"`
+}

@@ -29,6 +29,12 @@ type AppConfig struct {
 	// edge (UAT/prod) so the backend never invents an identity.
 	RequireUserID bool `env:"REQUIRE_USER_ID" envDefault:"false"`
 
+	// ImageStoreDir is where the debug upload endpoint persists original receipt
+	// images (backed by a docker volume in deployment) so they can be viewed
+	// next to their transcript. The dataset this builds up feeds the recognition
+	// flywheel (known-products, OCR error rules).
+	ImageStoreDir string `env:"IMAGE_STORE_DIR" envDefault:"./data/receipt-images"`
+
 	// DB connection and values
 	DbHost     string `env:"DB_HOST"`
 	DbPort     string `env:"DB_PORT"`

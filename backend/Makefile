@@ -5,6 +5,21 @@ HOST ?= 0.0.0.0
 PORT ?= 8080
 NETWORK ?= fin-track
 
+# Auth posture. The plain `start`/app-start container runs behind the Traefik
+# auth edge, so it must reject requests without a verified X-User-ID. dev-start
+# overrides this to false for frictionless local testing.
+REQUIRE_USER_ID ?= true
+
+# Debug image store: a named docker volume mounted into the backend. The debug
+# upload endpoint writes original images here so they can be viewed next to
+# their transcript on the UI.
+IMAGE_STORE_DIR ?= /data/receipt-images
+IMAGE_VOLUME    ?= receipt_images
+
+# Destructive DB targets (reset / db-nuke) refuse to run unless RUNTIME_ENV is
+# one of these, so they can't wipe a UAT/prod database by accident.
+DEV_ENVS := dev DEBUG debug development
+
 # Public hostname for the cloudflare smoke-test target. Sourced from the
 # gitignored traefik/.env so the real hostname never lands in version control.
 # Override ad hoc with: make test-all-img-cloudflare PUBLIC_HOSTNAME=host
@@ -41,7 +56,25 @@ start: ollama-kill db-kill kill db-start ollama-start  db-schema image app-start
 
 kill: ollama-kill db-kill app-kill
 
-reset: db-drop kill start 
+## reset: dev-only soft reset — clears scanned data (receipts/products/images)
+## but preserves users, merchants, categories, currencies. See sql/drop.sql.
+reset: guard-dev db-drop kill start
+
+## guard-dev: refuse to run a destructive target outside a dev RUNTIME_ENV.
+guard-dev:
+	@case " $(DEV_ENVS) " in \
+		*" $(RUNTIME_ENV) "*) : ;; \
+		*) echo "refusing destructive op: RUNTIME_ENV='$(RUNTIME_ENV)' is not a dev env ($(DEV_ENVS))" >&2; exit 1 ;; \
+	esac
+
+## db-nuke: dev-only FULL wipe (includes users + reference data). Use only when
+## changing the schema of the reference tables themselves. See sql/nuke.sql.
+db-nuke: guard-dev
+	-docker exec -i $(DB_NAME) \
+		psql \
+		-U $(DB_USER) \
+		-d $(DB_NAME) \
+		-f - < sql/nuke.sql
 
 test-categorize:
 	@echo "Testing categorize with receipt id $(RECEIPT_ID)"
@@ -105,6 +138,9 @@ dev-start: kill dev-image
 		-e DB_PORT=$(DB_PORT) \
 		-e DB_USER=$(DB_USER) \
 		-e DB_PASSWORD=$(DB_PASSWORD) \
+		-e REQUIRE_USER_ID=false \
+		-e IMAGE_STORE_DIR=$(IMAGE_STORE_DIR) \
+		-v $(IMAGE_VOLUME):$(IMAGE_STORE_DIR) \
 		--entrypoint=air \
 		$(APP_NAME)-dev:latest \
 		 -c /tmp/fin-track-src/.air.toml
@@ -133,6 +169,9 @@ app-start: create-network app-kill
 		-e DB_PORT=$(DB_PORT) \
 		-e DB_USER=$(DB_USER) \
 		-e DB_PASSWORD=$(DB_PASSWORD) \
+		-e REQUIRE_USER_ID=$(REQUIRE_USER_ID) \
+		-e IMAGE_STORE_DIR=$(IMAGE_STORE_DIR) \
+		-v $(IMAGE_VOLUME):$(IMAGE_STORE_DIR) \
 		$(APP_NAME):$(APP_VERSION)
 
 app-kill:
