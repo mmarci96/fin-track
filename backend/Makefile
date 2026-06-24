@@ -64,6 +64,15 @@ test-all-img:
 			http://localhost:8080/api/receipts/image; \
 		done
 
+test-all-img-cloudflare:
+	@echo "Sending all images..."
+	@for img in $(IMGS); do \
+		echo "Sending $$img..."; \
+		curl -X POST \
+			-F "image=$(IMG_PATH)/$$img" \
+			https://www.959353d1958446d49b91832e0d8e21fa.online/api/receipts/image; \
+		done
+
 test-ocr:
 	-curl -X POST \
 		-F "image=$(IMG_PATH)/IMG_0955.jpeg" \
