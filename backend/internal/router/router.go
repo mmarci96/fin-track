@@ -25,7 +25,7 @@ func SetupRouter(
 	r.Use(httpx.UserID(cfg.DefaultUserID, cfg.RequireUserID))
 
 	extractor := ollamapkg.NewItemExtractor(ollama, cfg.OllamaModel)
-	imageHandler := handler.NewImageHandler(db, extractor)
+	imageHandler := handler.NewImageHandler(db, extractor, cfg.ImageStoreDir)
 	receiptHandler := handler.NewReceiptHandler(db, ollama)
 	merchantHandler := handler.NewMerchantHandler(db)
 	categoryHandler := handler.NewCategoryHandler(db, ollama)
@@ -36,6 +36,9 @@ func SetupRouter(
 	{
 		receipts.POST("/:id/categorize", receiptHandler.CategorizeReceiptItems)
 		receipts.POST("/image", imageHandler.OCR)
+		// Developer upload: same pipeline, but persists the image + transcript
+		// for side-by-side review and recognition analysis.
+		receipts.POST("/image/debug", imageHandler.OCRDebug)
 		receipts.POST("", receiptHandler.Create)
 		receipts.GET("", receiptHandler.List)
 		receipts.GET("/:id", receiptHandler.Get)
@@ -59,6 +62,16 @@ func SetupRouter(
 		categories.GET("/:id", categoryHandler.Get)
 		categories.PUT("/:id", categoryHandler.Update)
 		categories.DELETE("/:id", categoryHandler.Delete)
+	}
+
+	// Persisted debug uploads: the original image + its transcript/parse, for
+	// the developer side-by-side viewer and the recognition dataset.
+	images := api.Group("/receipt-images")
+	{
+		images.GET("", imageHandler.ListImages)
+		images.GET("/:id", imageHandler.GetImage)
+		images.GET("/:id/meta", imageHandler.GetImageMeta)
+		images.PUT("/:id/clean", imageHandler.UpdateImageClean)
 	}
 
 	products := api.Group("/products")

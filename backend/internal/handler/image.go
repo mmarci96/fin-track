@@ -3,9 +3,11 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/cockroachdb/errors"
@@ -106,7 +108,7 @@ func (h *ImageHandler) OCRDebug(c *gin.Context) {
 	log.Info("debug ocr request received")
 
 	// Persist the original image to the store, then OCR it in place.
-	storedName, fullPath, err := h.saveOriginal(file)
+	storedName, fullPath, err := h.saveOriginal(c, file)
 	if err != nil {
 		httpx.Respond(c, err)
 		return
@@ -114,6 +116,9 @@ func (h *ImageHandler) OCRDebug(c *gin.Context) {
 
 	text, result, err := h.ocrAndParse(c.Request.Context(), fullPath)
 	if err != nil {
+		// OCR failed outright (e.g. a corrupt file): don't leave the saved image
+		// orphaned with no DB row pointing at it.
+		_ = os.Remove(fullPath)
 		httpx.Respond(c, err)
 		return
 	}
@@ -301,7 +306,7 @@ func (h *ImageHandler) persistReceipt(ctx context.Context, result receipt.Result
 // saveOriginal copies an uploaded file into the image store under a random name,
 // returning the stored (relative) name and the absolute path. The extension is
 // preserved so the file is served with a sensible type.
-func (h *ImageHandler) saveOriginal(file *multipartFileHeader) (string, string, error) {
+func (h *ImageHandler) saveOriginal(c *gin.Context, file *multipart.FileHeader) (string, string, error) {
 	if err := os.MkdirAll(h.storeDir, 0o755); err != nil {
 		return "", "", apperr.Internal("could not save image", errors.Wrapf(err, "mkdir %q", h.storeDir))
 	}
@@ -311,7 +316,7 @@ func (h *ImageHandler) saveOriginal(file *multipartFileHeader) (string, string, 
 	}
 	name := uuid.NewString() + ext
 	full := filepath.Join(h.storeDir, name)
-	if err := saveUploaded(file, full); err != nil {
+	if err := c.SaveUploadedFile(file, full); err != nil {
 		return "", "", apperr.Internal("could not save image", errors.Wrapf(err, "save %q", full))
 	}
 	return name, full, nil
@@ -319,9 +324,9 @@ func (h *ImageHandler) saveOriginal(file *multipartFileHeader) (string, string, 
 
 // pathID parses the :id path param, responding with 400 on failure.
 func pathID(c *gin.Context) (int, bool) {
-	id, err := strconvAtoiPositive(c.Param("id"))
-	if err != nil {
-		httpx.Respond(c, apperr.BadRequest("invalid id", errors.Wrap(err, "parse id")))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		httpx.Respond(c, apperr.BadRequest("invalid id", errors.Wrapf(err, "parse id %q", c.Param("id"))))
 		return 0, false
 	}
 	return id, true

@@ -48,6 +48,12 @@ func run(cfg *config.AppConfig) error {
 		return fmt.Errorf("ensure default user: %w", err)
 	}
 
+	// Ensure the debug image store exists. Non-fatal: only the debug upload
+	// endpoint needs it, so a permission issue here should not stop the server.
+	if err := os.MkdirAll(cfg.ImageStoreDir, 0o755); err != nil {
+		logger.Log.Warn("could not create image store dir", "dir", cfg.ImageStoreDir, "error", err)
+	}
+
 	ollamaSvc := ollama.NewOllamaService(*cfg, logger.Log)
 
 	// imgSvc := img.NewImgService()

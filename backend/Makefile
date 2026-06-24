@@ -84,6 +84,15 @@ test-default:
 	@echo "Testing with sample image IMG_0955.jpeg"
 	curl -X POST -F "image=$(IMG_PATH)/IMG_0955.jpeg" http://localhost:8080/api/receipts/image;
 
+## test-debug-img: send a sample image to the developer debug endpoint, which
+## also persists the image + transcript. Sends X-User-ID since the secured
+## container (app-start) requires it; harmless against dev-start.
+test-debug-img:
+	@echo "Sending sample image to the debug endpoint..."
+	curl -X POST -H "X-User-ID: 1" \
+		-F "image=$(IMG_PATH)/IMG_0955.jpeg" \
+		http://localhost:8080/api/receipts/image/debug;
+
 test-otpr-imgs:
 	@echo "Sending otp restaurant receipts..."
 	@for img in $(OTPR_IMGS); do \

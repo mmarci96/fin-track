@@ -44,7 +44,7 @@ func (db *Database) GetReceiptImageByID(id, userID int) (*model.ReceiptImage, er
 		WHERE id = $1 AND user_id = $2
 	`, id, userID).Scan(
 		&img.ID, &img.ReceiptID, &img.UserID, &img.StoredPath, &img.OriginalName,
-		&img.ContentType, &img.CleanText, &parse, &img.CreatedAt,
+		&img.ContentType, &img.OCRText, &img.CleanText, &parse, &img.CreatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, apperr.NotFound("receipt image not found", errors.Wrapf(err, "receipt_image id=%d user_id=%d", id, userID))
