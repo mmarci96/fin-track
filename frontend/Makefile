@@ -14,14 +14,14 @@ PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.48.0-noble
 .PHONY: start image ui-start traefik-start network kill kill-ui kill-traefik clean dev install build e2e
 
 ## start: build the UI image and run UI + Traefik on the backend network
-start: image start
+start: image ui-start
 
 reset: kill start
 
 image:
 	docker build -t $(IMAGE) .
 
-start: kill
+ui-start: kill
 	docker run -d \
 		--name $(APP_NAME) \
 		--network $(NETWORK) \

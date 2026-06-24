@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, Camera, ReceiptText } from 'lucide-react';
+import { ChevronRight, Camera, ReceiptText, PenLine } from 'lucide-react';
 import { useReceipts } from '@/api/receipts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,20 @@ export function ReceiptList() {
     <div className="space-y-4 p-4">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Receipts</h1>
-        <Button size="sm" onClick={() => navigate('/scan')}>
-          <Camera className="h-4 w-4" />
-          Scan
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate('/expenses/new')}
+          >
+            <PenLine className="h-4 w-4" />
+            Add
+          </Button>
+          <Button size="sm" onClick={() => navigate('/scan')}>
+            <Camera className="h-4 w-4" />
+            Scan
+          </Button>
+        </div>
       </header>
 
       {isLoading && <CenteredSpinner />}

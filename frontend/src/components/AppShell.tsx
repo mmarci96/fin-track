@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { Receipt, Camera, Settings } from 'lucide-react';
+import { Receipt, Camera, BarChart3, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const tabs = [
   { to: '/', label: 'Receipts', icon: Receipt, end: true },
   { to: '/scan', label: 'Scan', icon: Camera, end: false },
+  { to: '/statistics', label: 'Stats', icon: BarChart3, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ];
 

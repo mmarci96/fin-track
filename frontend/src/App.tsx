@@ -5,6 +5,8 @@ import { Login } from '@/pages/Login';
 import { ReceiptList } from '@/pages/ReceiptList';
 import { Scan } from '@/pages/Scan';
 import { ReceiptDetail } from '@/pages/ReceiptDetail';
+import { AddExpense } from '@/pages/AddExpense';
+import { Statistics } from '@/pages/Statistics';
 import { Settings } from '@/pages/Settings';
 
 export default function App() {
@@ -19,6 +21,8 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<ReceiptList />} />
                 <Route path="/scan" element={<Scan />} />
+                <Route path="/expenses/new" element={<AddExpense />} />
+                <Route path="/statistics" element={<Statistics />} />
                 <Route path="/receipts/:id" element={<ReceiptDetail />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>

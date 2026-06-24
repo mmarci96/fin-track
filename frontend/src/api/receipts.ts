@@ -6,10 +6,17 @@ import { api } from '@/lib/api';
 // handlers wrap payloads in { "result": ... }. We normalize to clean camelCase
 // app types right here at the boundary so no UI code deals with the wire shape.
 
+interface RawCategory {
+  ID: number;
+  Name: string;
+}
 interface RawProduct {
   ID: number;
   Name: string;
   Price: number;
+  // The list endpoint omits categories today; the detail endpoint (and, once
+  // the backend is extended, the list too) includes them. Treat as optional.
+  Categories?: RawCategory[] | null;
 }
 interface RawReceipt {
   ID: number;
@@ -23,10 +30,15 @@ interface RawReceipt {
 
 // --- App types -------------------------------------------------------------
 
+export interface Category {
+  id: number;
+  name: string;
+}
 export interface Product {
   id: number;
   name: string;
   price: number; // integer minor units
+  categories: Category[]; // empty when the source didn't include them
 }
 export interface Receipt {
   id: number;
@@ -57,6 +69,7 @@ function mapReceipt(r: RawReceipt): Receipt {
       id: p.ID,
       name: p.Name,
       price: p.Price,
+      categories: (p.Categories ?? []).map((c) => ({ id: c.ID, name: c.Name })),
     })),
   };
 }
@@ -64,6 +77,13 @@ function mapReceipt(r: RawReceipt): Receipt {
 // --- Request payloads (these DO use snake_case json tags on the backend) ----
 
 export interface ReceiptUpdateInput {
+  total_amount: number;
+  currency: string;
+  products: { name: string; price: number }[];
+}
+
+export interface ReceiptCreateInput {
+  merchant_id: number;
   total_amount: number;
   currency: string;
   products: { name: string; price: number }[];
@@ -121,6 +141,17 @@ export function useUploadImage() {
           merchantKnown: body.detected.merchant_known,
         },
       };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useCreateReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ReceiptCreateInput) => {
+      const body = await api.post<{ result: RawReceipt }>('/receipts', input);
+      return mapReceipt(body.result);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
