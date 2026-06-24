@@ -52,7 +52,7 @@ RECEIPT_ID = 5
 
 PHONY:$(MAKECMDGOALS)
 
-start: ollama-kill db-kill kill db-start ollama-start  db-schema image app-start
+start: ollama-kill db-kill kill db-start ollama-start db-wait db-schema image app-start
 
 kill: ollama-kill db-kill app-kill
 
@@ -210,11 +210,25 @@ db-start: create-network
 		-e POSTGRES_USER=$(DB_USER) \
 		-e POSTGRES_PASSWORD=$(DB_PASSWORD) \
 		-e POSTGRES_DB=$(DB_NAME) \
-		-v $(DB_DATA_DOCKER_VOL)=/var/lib/postgresql \
+		-v $(DB_DATA_DOCKER_VOL):/var/lib/postgresql/data \
 		$(DB_IMAGE):$(DB_VERSION)
 
 db-kill:
 	-docker kill $(DB_NAME)
+
+## db-wait: block until postgres accepts connections. `docker run -d` returns as
+## soon as the container is created, not when the DB is ready — without this gate
+## db-schema silently fails (its `-` prefix hides it) and app-start crashes with
+## "ping postgres: connection refused".
+db-wait:
+	@echo "waiting for postgres to accept connections..."
+	@for i in $$(seq 1 30); do \
+		if docker exec $(DB_NAME) pg_isready -U $(DB_USER) -d $(DB_NAME) >/dev/null 2>&1; then \
+			echo "postgres ready"; exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "postgres did not become ready in 30s" >&2; exit 1
 
 db-schema:	
 	-docker exec -i $(DB_NAME) \
