@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { api } from '@/lib/api';
 import {
   useDebugImages,
   useDebugImageMeta,
   useSaveCleanText,
-  debugImageUrl,
+  useUploadDebugImage,
   type ParseResult,
 } from '@/api/debug';
 
@@ -33,12 +34,12 @@ export function DebugReceipts() {
         Debug — image ⟷ transcript
       </h1>
 
+      <Uploader onUploaded={setSelected} />
+
       {isLoading && <p className="text-muted-foreground">Loading…</p>}
       {!isLoading && (!images || images.length === 0) && (
         <p className="text-muted-foreground">
-          No debug uploads yet. POST an image to{' '}
-          <code className="rounded bg-muted px-1">/api/receipts/image/debug</code>{' '}
-          (e.g. <code className="rounded bg-muted px-1">make -C backend test-debug-img</code>).
+          No debug uploads yet — drop some receipt images above to get started.
         </p>
       )}
 
@@ -85,6 +86,7 @@ function DebugDetail({ id }: { id: number }) {
   const { data: meta, isLoading } = useDebugImageMeta(id);
   const save = useSaveCleanText(id);
   const [clean, setClean] = useState('');
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
 
   // Seed the editor from the stored clean text, falling back to the raw OCR so
   // correcting is edit-in-place rather than retyping.
@@ -92,17 +94,41 @@ function DebugDetail({ id }: { id: number }) {
     if (meta) setClean(meta.cleanText ?? meta.ocrText ?? '');
   }, [meta]);
 
+  // Load the image as an authenticated blob (a plain <img> can't send the auth
+  // header). Revoke the object URL on change/unmount to avoid leaks.
+  useEffect(() => {
+    let url: string | null = null;
+    let cancelled = false;
+    api
+      .getBlob(`/receipt-images/${id}`)
+      .then((blob) => {
+        if (cancelled) return;
+        url = URL.createObjectURL(blob);
+        setImgUrl(url);
+      })
+      .catch(() => !cancelled && setImgUrl(null));
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+      setImgUrl(null);
+    };
+  }, [id]);
+
   if (isLoading || !meta) return <p className="text-muted-foreground">Loading…</p>;
 
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Left: the image */}
       <div className="overflow-auto rounded border border-border bg-muted/30 p-2">
-        <img
-          src={debugImageUrl(id)}
-          alt={meta.originalName}
-          className="mx-auto max-h-[78vh] w-auto object-contain"
-        />
+        {imgUrl ? (
+          <img
+            src={imgUrl}
+            alt={meta.originalName}
+            className="mx-auto max-h-[78vh] w-auto object-contain"
+          />
+        ) : (
+          <p className="p-4 text-sm text-muted-foreground">Loading image…</p>
+        )}
       </div>
 
       {/* Right: parse summary, transcript, clean-text editor */}
@@ -176,6 +202,79 @@ function ParseSummary({ parse }: { parse: ParseResult }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function Uploader({ onUploaded }: { onUploaded: (id: number) => void }) {
+  const upload = useUploadDebugImage();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  async function handleFiles(files: FileList | null) {
+    const list = Array.from(files ?? []).filter((f) =>
+      f.type.startsWith('image/'),
+    );
+    if (list.length === 0) return;
+    setError(null);
+    let lastId = 0;
+    for (let i = 0; i < list.length; i++) {
+      setStatus(`Uploading ${i + 1}/${list.length}: ${list[i].name}…`);
+      try {
+        // Sequential: OCR is heavy, no point hammering it in parallel.
+        const r = await upload.mutateAsync(list[i]);
+        lastId = r.imageId;
+      } catch (e) {
+        setError(`Failed on ${list[i].name}: ${(e as Error).message}`);
+      }
+    }
+    setStatus(null);
+    if (lastId) onUploaded(lastId);
+  }
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        void handleFiles(e.dataTransfer.files);
+      }}
+      className={
+        'mb-4 flex flex-col items-center gap-2 rounded border-2 border-dashed p-4 text-sm transition-colors ' +
+        (dragOver ? 'border-primary bg-primary/5' : 'border-border')
+      }
+    >
+      <p className="text-muted-foreground">
+        Drop receipt images here, or
+      </p>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={() => inputRef.current?.click()}
+        disabled={upload.isPending}
+      >
+        {upload.isPending ? 'Uploading…' : 'Choose images'}
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = ''; // allow re-selecting the same file
+        }}
+      />
+      {status && <p className="text-muted-foreground">{status}</p>}
+      {error && <p className="text-destructive">{error}</p>}
     </div>
   );
 }

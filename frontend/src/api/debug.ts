@@ -88,6 +88,28 @@ export function useDebugImageMeta(id: number | null) {
   });
 }
 
+export interface DebugUploadResult {
+  imageId: number;
+  decision: string;
+}
+
+/** Upload an image to the debug endpoint; the backend persists it for review. */
+export function useUploadDebugImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File): Promise<DebugUploadResult> => {
+      const form = new FormData();
+      form.append('image', file, file.name);
+      const body = await api.postForm<{ image_id: number; decision: string }>(
+        '/receipts/image/debug',
+        form,
+      );
+      return { imageId: body.image_id, decision: body.decision };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
 export function useSaveCleanText(id: number) {
   const qc = useQueryClient();
   return useMutation({

@@ -73,4 +73,16 @@ export const api = {
   /** Multipart upload — do not set Content-Type, the browser adds the boundary. */
   postForm: <T>(path: string, form: FormData) =>
     request<T>(path, { method: 'POST', body: form }),
+
+  /**
+   * Fetch a binary response (e.g. an image) WITH the auth headers, which a plain
+   * <img src> cannot send. Returns the blob; the caller makes an object URL.
+   */
+  getBlob: async (path: string): Promise<Blob> => {
+    const res = await fetch(BASE_URL + path, { headers: { ...authHeaders() } });
+    if (!res.ok) {
+      throw new ApiError(res.status, res.statusText || 'request failed');
+    }
+    return res.blob();
+  },
 };

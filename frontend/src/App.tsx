@@ -35,10 +35,7 @@ export default function App() {
                 <Route path="/statistics" element={<Statistics />} />
                 <Route path="/receipts/:id" element={<ReceiptDetail />} />
                 <Route path="/settings" element={<Settings />} />
-                {/* Developer tool: image ⟷ transcript side-by-side. Dev-only. */}
-                {IS_DEV && (
-                  <Route path="/debug" element={<DebugReceipts />} />
-                )}
+                <Route path="/debug" element={<DebugReceipts />} />
               </Routes>
             </AppShell>
           </RequireAuth>
