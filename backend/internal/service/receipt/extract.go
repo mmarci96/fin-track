@@ -18,11 +18,14 @@ var unitPriceSuffixRe = regexp.MustCompile(`(?i)\s+\S*\d+\s*FT\s*/\s*\w*\.?$`)
 // or an address house number). No real HUF grocery line costs under 10.
 const minItemPrice = 10
 
-// extracted holds the raw output of heuristic extraction before scoring.
+// extracted holds the raw output of heuristic extraction before scoring. The
+// printed total is chosen separately (see total.go) from all candidate lines;
+// DepositSum (returnable-bottle deposits, +) and DiscountSum (−) adjust the
+// reconciliation target so deposit-heavy receipts still reconcile.
 type extracted struct {
-	Items    []Item
-	Total    int
-	Currency string
+	Items       []Item
+	DepositSum  int
+	DiscountSum int
 }
 
 // extractItems walks the cleaned lines and pulls out line items and the printed
@@ -40,17 +43,28 @@ func extractItems(lines []string) extracted {
 
 		switch t {
 		case lineTotal:
-			if price, _, ok := lastPrice(line); ok {
-				if isFinalTotal(line) || out.Total == 0 {
-					out.Total = price
-				}
-			}
-			pendingName = ""
 			// The grand total ends the item section; everything after it is
-			// payment/footer noise (card PANs, terminal ids), so stop scanning.
+			// payment/footer noise (card PANs, terminal ids), so stop scanning. The
+			// total value itself is chosen later from all candidate lines (total.go).
+			pendingName = ""
 			if isFinalTotal(line) {
 				return out
 			}
+
+		case lineDeposit:
+			// Returnable-bottle deposit (VISSZAVALTASI DIJ): a real charge added to
+			// the printed total, so it counts toward reconciliation.
+			if price, _, ok := lastPrice(line); ok && price > 0 {
+				out.DepositSum += price
+			}
+			pendingName = ""
+
+		case lineDiscount:
+			// Discount (ENGEDMENY / "-…"): subtracted from the printed total.
+			if price, _, ok := lastPrice(line); ok && price > 0 {
+				out.DiscountSum += price
+			}
+			pendingName = ""
 
 		case lineWeight:
 			// A weight line may carry the price for the preceding nameless item.

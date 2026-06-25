@@ -48,9 +48,11 @@ func pgErrCode(err error) string {
 func (db *Database) CreateMerchant(name string) (*model.Merchant, error) {
 	m := &model.Merchant{Name: name}
 
+	// Human-created merchants are trusted, so they are verified (and thus matched
+	// against during parsing).
 	err := db.DB.QueryRow(`
-		INSERT INTO merchants (name, normalized_name)
-		VALUES ($1, $2)
+		INSERT INTO merchants (name, normalized_name, verified)
+		VALUES ($1, $2, true)
 		RETURNING id
 	`, name, receipt.NormalizeName(name)).Scan(&m.ID)
 	if pgErrCode(err) == pgUniqueViolation {

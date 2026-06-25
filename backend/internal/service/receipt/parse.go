@@ -16,6 +16,7 @@ type Parser struct {
 	known      []string
 	currencies []model.Currency
 	fallback   LLMFallback
+	aliases    []MerchantAlias
 }
 
 // NewParser builds a parser. fallback may be nil (heuristics only), which is how
@@ -24,11 +25,18 @@ func NewParser(known []string, currencies []model.Currency, fallback LLMFallback
 	return &Parser{known: known, currencies: currencies, fallback: fallback}
 }
 
+// WithMerchantAliases attaches learned header→canonical aliases (the merchant
+// flywheel). Fluent and optional so existing callers/tests stay unchanged.
+func (p *Parser) WithMerchantAliases(aliases []MerchantAlias) *Parser {
+	p.aliases = aliases
+	return p
+}
+
 // Parse runs the full pipeline and returns a graded Result.
 func (p *Parser) Parse(ctx context.Context, text string) Result {
 	lines := normalizeText(text)
 
-	mm := detectMerchant(lines, p.known)
+	mm := detectMerchant(lines, p.known, p.aliases)
 	res := Result{
 		MerchantKnown: mm.Known,
 		MerchantName:  mm.Candidate,
@@ -46,8 +54,17 @@ func (p *Parser) Parse(ctx context.Context, text string) Result {
 
 	ex := extractItems(lines)
 	res.Items = ex.Items
-	res.Total = ex.Total
-	reconcile(&res)
+
+	// Reconciliation target = items + deposits − discounts; the printed total is
+	// chosen from all candidate lines as the value closest to it (total.go).
+	itemSum := 0
+	for _, it := range ex.Items {
+		itemSum += it.Price
+	}
+	res.ComputedTotal = itemSum + ex.DepositSum - ex.DiscountSum
+	res.Total = chooseTotal(collectTotalCandidates(lines), res.ComputedTotal)
+	res.Reconciled = res.Total > 0 &&
+		abs(res.ComputedTotal-res.Total) <= reconcileTolerance(res.Total)
 
 	// LLM fallback: heuristics produced nothing usable or did not reconcile.
 	if p.fallback != nil && p.shouldFallback(res) {

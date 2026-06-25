@@ -50,6 +50,9 @@ IMGS = IMG_0955.jpeg IMG_0961.jpeg IMG_0962.jpeg IMG_0963.jpeg IMG_0964.jpeg IMG
 OTPR_IMGS = IMG_0975.jpeg IMG_0974.jpeg IMG_0973.jpeg IMG_0972.jpeg
 RECEIPT_ID = 5
 
+ALL_IMG = IMG_0955.jpeg IMG_0962.jpeg IMG_0964.jpeg IMG_0971.jpeg IMG_0973.jpeg IMG_0975.jpeg general_ocr_002.png IMG_0961.jpeg IMG_0963.jpeg IMG_0967.jpeg IMG_0972.jpeg IMG_0974.jpeg IMG_0976.jpeg
+
+
 PHONY:$(MAKECMDGOALS)
 
 start: ollama-kill db-kill kill db-start ollama-start db-wait db-schema image app-start
@@ -102,9 +105,18 @@ test-otpr-imgs:
 			http://localhost:8080/api/receipts/image; \
 		done
 
+test-all-img-debug:
+	@echo "Sending all images..."
+	@for img in $(ALL_IMG); do \
+		echo "Sending $$img..."; \
+		curl -X POST \
+			-F "image=$(IMG_PATH)/$$img" \
+			http://localhost:8080/api/receipts/image/debug; \
+		done
+
 test-all-img:
 	@echo "Sending all images..."
-	@for img in $(IMGS); do \
+	@for img in $(ALL_IMG); do \
 		echo "Sending $$img..."; \
 		curl -X POST \
 			-F "image=$(IMG_PATH)/$$img" \
@@ -131,10 +143,11 @@ test-ocr:
 dev-image:
 	docker build -f Dockerfile.dev -t $(APP_NAME)-dev:latest .
 
-dev-start: kill dev-image
+dev-start: dev-image
 	docker run  -it --rm \
 		--name $(APP_NAME) \
 		-p $(PORT):$(PORT) \
+		-p 8081:$(PORT) \
 		--network $(NETWORK) \
 		-v $(shell pwd):/tmp/fin-track-src \
 		-v go-mod-cache:/go/pkg/mod \

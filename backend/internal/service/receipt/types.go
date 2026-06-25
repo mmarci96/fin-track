@@ -55,6 +55,14 @@ type Result struct {
 	Currency      model.Currency `json:"currency"`
 }
 
+// MerchantAlias maps a normalized raw-OCR header variant to a canonical merchant
+// name. Learned when a human approves a clean transcript, then fed back into
+// detectMerchant so previously-unrecognised header variants resolve.
+type MerchantAlias struct {
+	Normalized string // normalizeName(...) of the garbled OCR header
+	Canonical  string // canonical merchant name it resolves to
+}
+
 // LLMFallback extracts items from OCR text when heuristics are not confident.
 // Implemented by an Ollama-backed adapter in the service layer; the parser only
 // depends on this interface so it stays testable offline.

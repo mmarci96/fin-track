@@ -235,11 +235,18 @@ type ReceiptRepository interface {
 }
 
 func (db *Database) FindMerchants() ([]string, error) {
-	rows, err := db.DB.Query(`
-		SELECT name
-		FROM merchants
-		ORDER BY name
-	`)
+	return db.findMerchantNames("")
+}
+
+// FindVerifiedMerchants returns only the names of verified (human-curated)
+// merchants. The parser matches headers against these alone, so legacy
+// auto-created junk rows and the UNKNOWN sentinel can't poison detection.
+func (db *Database) FindVerifiedMerchants() ([]string, error) {
+	return db.findMerchantNames("WHERE verified")
+}
+
+func (db *Database) findMerchantNames(where string) ([]string, error) {
+	rows, err := db.DB.Query(`SELECT name FROM merchants ` + where + ` ORDER BY name`)
 	if err != nil {
 		return nil, errors.Wrap(err, "query merchants")
 	}

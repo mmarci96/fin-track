@@ -72,6 +72,7 @@ func SetupRouter(
 		images.GET("/:id", imageHandler.GetImage)
 		images.GET("/:id/meta", imageHandler.GetImageMeta)
 		images.PUT("/:id/clean", imageHandler.UpdateImageClean)
+		images.PUT("/:id/approve", imageHandler.ApproveImage)
 	}
 
 	products := api.Group("/products")

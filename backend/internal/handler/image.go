@@ -211,6 +211,9 @@ func (h *ImageHandler) GetImageMeta(c *gin.Context) {
 		"ocr_text":      rec.OCRText,
 		"clean_text":    rec.CleanText,
 		"parse":         json.RawMessage(rec.ParseJSON),
+		"clean_parse":   json.RawMessage(rec.CleanParseJSON),
+		"approved":      rec.Approved,
+		"approved_at":   rec.ApprovedAt,
 		"created_at":    rec.CreatedAt,
 	})
 }
@@ -242,36 +245,150 @@ func (h *ImageHandler) UpdateImageClean(c *gin.Context) {
 		httpx.Respond(c, apperr.BadRequest("clean_text required", errors.Wrap(err, "bind body")))
 		return
 	}
-	if err := h.db.SetReceiptImageCleanText(id, userID, body.CleanText); err != nil {
+
+	// Re-parse the corrected transcript so the viewer can show the structured
+	// result live, and persist it as the ground-truth parse (the corpus).
+	result, err := h.parseText(c.Request.Context(), body.CleanText)
+	if err != nil {
 		httpx.Respond(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	cleanParseJSON, _ := json.Marshal(result)
+
+	if err := h.db.SetReceiptImageClean(id, userID, body.CleanText, cleanParseJSON); err != nil {
+		httpx.Respond(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "clean_parse": result})
+}
+
+// ApproveImage approves (or un-approves) a capture's clean transcript as ground
+// truth. The approved state is what the debug viewer surfaces per capture.
+func (h *ImageHandler) ApproveImage(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	ctx := c.Request.Context()
+	userID := httpx.UserIDFromContext(ctx)
+
+	var body struct {
+		Approved bool `json:"approved"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		httpx.Respond(c, apperr.BadRequest("approved required", errors.Wrap(err, "bind body")))
+		return
+	}
+	if err := h.db.SetReceiptImageApproved(id, userID, body.Approved); err != nil {
+		httpx.Respond(c, err)
+		return
+	}
+
+	resp := gin.H{"ok": true, "approved": body.Approved}
+	// Approving is the ground-truth event: promote the capture into the flywheel
+	// by learning a merchant alias from it. Best effort, never blocks approval.
+	if body.Approved {
+		if alias := h.learnMerchantAlias(ctx, id, userID); alias != nil {
+			resp["learned_alias"] = alias
+		}
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// learnMerchantAlias records the garbled raw-OCR header of an approved capture as
+// an alias for the canonical merchant the corrected transcript identifies, so
+// future uploads with that header resolve. Returns {alias, merchant} when an
+// alias was learned, nil otherwise. Errors are logged, never surfaced — approval
+// has already succeeded.
+func (h *ImageHandler) learnMerchantAlias(ctx context.Context, id, userID int) gin.H {
+	log := logger.FromContext(ctx)
+
+	rec, err := h.db.GetReceiptImageByID(id, userID)
+	if err != nil || rec.CleanText == nil || strings.TrimSpace(*rec.CleanText) == "" {
+		return nil
+	}
+
+	// The canonical merchant comes from re-parsing the corrected transcript.
+	cleanRes, err := h.parseText(ctx, *rec.CleanText)
+	if err != nil || !cleanRes.MerchantKnown {
+		return nil
+	}
+
+	// The variant worth learning is the garbled raw-OCR header.
+	rawKey := receipt.NormalizeName(firstNonEmptyLine(rec.OCRText))
+	if rawKey == "" {
+		return nil
+	}
+
+	// If the raw OCR already resolves to this merchant (canonical match or an
+	// existing alias), there's nothing new to learn.
+	if rawRes, perr := h.parseText(ctx, rec.OCRText); perr == nil && rawRes.MerchantKnown &&
+		receipt.NormalizeName(rawRes.MerchantName) == receipt.NormalizeName(cleanRes.MerchantName) {
+		return nil
+	}
+
+	merchantID, err := h.db.ResolveMerchant(cleanRes.MerchantName)
+	if err != nil {
+		log.Warn("flywheel: resolve merchant failed", "err", err)
+		return nil
+	}
+	if err := h.db.CreateMerchantAlias(merchantID, rawKey, &id); err != nil {
+		log.Warn("flywheel: create alias failed", "err", err)
+		return nil
+	}
+	log.Info("flywheel: learned merchant alias", "alias", rawKey, "merchant", cleanRes.MerchantName)
+	return gin.H{"alias": rawKey, "merchant": cleanRes.MerchantName}
+}
+
+// firstNonEmptyLine returns the first non-blank line of s (trimmed), or "".
+func firstNonEmptyLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if t := strings.TrimSpace(l); t != "" {
+			return t
+		}
+	}
+	return ""
 }
 
 // ocrAndParse runs OCR over a staged file and parses the text into a graded
 // result, scoped to the known merchants and currencies. Shared by both upload
 // paths. Returned errors are already apperr-classified.
 func (h *ImageHandler) ocrAndParse(ctx context.Context, path string) (string, receipt.Result, error) {
-	log := logger.FromContext(ctx)
-
 	text, err := img.ParseImageToTxt(path, true)
 	if err != nil {
 		return "", receipt.Result{}, apperr.Internal("could not read receipt image", err)
 	}
-	log.Debug("ocr extraction complete", "text_len", len(text))
+	logger.FromContext(ctx).Debug("ocr extraction complete", "text_len", len(text))
 
-	merchants, err := h.db.FindMerchants()
+	result, err := h.parseText(ctx, text)
 	if err != nil {
-		return "", receipt.Result{}, apperr.Internal("could not load merchants", err)
+		return "", receipt.Result{}, err
+	}
+	return text, result, nil
+}
+
+// parseText loads the reference data (known merchants, currencies, and the
+// learned merchant aliases) and runs the parser over arbitrary text. Shared by
+// the OCR upload paths and the re-parse of a human-corrected transcript, so both
+// benefit from the flywheel's aliases. Returned errors are apperr-classified.
+func (h *ImageHandler) parseText(ctx context.Context, text string) (receipt.Result, error) {
+	merchants, err := h.db.FindVerifiedMerchants()
+	if err != nil {
+		return receipt.Result{}, apperr.Internal("could not load merchants", err)
 	}
 	currencies, err := h.db.GetAllCurrencies()
 	if err != nil {
-		return "", receipt.Result{}, apperr.Internal("could not load currencies", err)
+		return receipt.Result{}, apperr.Internal("could not load currencies", err)
+	}
+	aliases, err := h.db.GetMerchantAliases()
+	if err != nil {
+		return receipt.Result{}, apperr.Internal("could not load merchant aliases", err)
 	}
 
-	result := receipt.NewParser(merchants, currencies, h.extractor).Parse(ctx, text)
-	log.Info("receipt parsed",
+	result := receipt.NewParser(merchants, currencies, h.extractor).
+		WithMerchantAliases(aliases).
+		Parse(ctx, text)
+	logger.FromContext(ctx).Info("receipt parsed",
 		"merchant", result.MerchantName,
 		"decision", string(result.Decision),
 		"items", len(result.Items),
@@ -280,15 +397,20 @@ func (h *ImageHandler) ocrAndParse(ctx context.Context, path string) (string, re
 		"confidence", result.Confidence,
 		"warnings", result.Warnings,
 	)
-	return text, result, nil
+	return result, nil
 }
 
 // persistReceipt resolves the merchant and stores the parsed receipt for the
 // acting user.
 func (h *ImageHandler) persistReceipt(ctx context.Context, result receipt.Result) (model.Receipt, error) {
-	merchantName := strings.TrimSpace(result.MerchantName)
-	if merchantName == "" {
-		merchantName = "UNKNOWN"
+	// Only an identified (verified) merchant is persisted; unknown headers collapse
+	// onto a single UNKNOWN sentinel rather than minting a junk merchant row per
+	// garbled OCR header (the old self-poisoning bug).
+	merchantName := "UNKNOWN"
+	if result.MerchantKnown {
+		if n := strings.TrimSpace(result.MerchantName); n != "" {
+			merchantName = n
+		}
 	}
 	merchantID, err := h.db.ResolveMerchant(merchantName)
 	if err != nil {

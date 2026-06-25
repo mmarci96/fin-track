@@ -22,13 +22,21 @@ CREATE TABLE IF NOT EXISTS merchants (
     name TEXT NOT NULL,
     -- accent-free, uppercase, punctuation-free key for de-duplication; must match
     -- receipt.NormalizeName so OCR variants collapse onto the canonical row.
-    normalized_name TEXT NOT NULL UNIQUE
+    normalized_name TEXT NOT NULL UNIQUE,
+    -- Only verified merchants are matched against during parsing. Human-curated
+    -- (seeded / created via the merchant API); the UNKNOWN sentinel and any
+    -- legacy auto-created rows stay false so they can't poison detection. See
+    -- sql/add_verified_merchant.sql.
+    verified BOOLEAN NOT NULL DEFAULT false
 );
 
-INSERT INTO merchants (name, normalized_name) VALUES
-    ('ROSSMANN MAGYARORSZAG KFT', 'ROSSMANN MAGYARORSZAG KFT'),
-    ('ALDI MAGYARORSZAG ELELMISZER Bt.', 'ALDI MAGYARORSZAG ELELMISZER BT')
-    ON CONFLICT (normalized_name) DO NOTHING;
+-- Idempotent for databases created before verified existed.
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
+
+INSERT INTO merchants (name, normalized_name, verified) VALUES
+    ('ROSSMANN MAGYARORSZAG KFT', 'ROSSMANN MAGYARORSZAG KFT', true),
+    ('ALDI MAGYARORSZAG ELELMISZER Bt.', 'ALDI MAGYARORSZAG ELELMISZER BT', true)
+    ON CONFLICT (normalized_name) DO UPDATE SET verified = true;
 
 -- Supported currencies. HUF is inserted first so it gets id = 1, which the
 -- receipts.currency_id default below relies on. Amounts are stored as integers
@@ -107,7 +115,34 @@ CREATE TABLE IF NOT EXISTS receipt_images (
     ocr_text TEXT NOT NULL DEFAULT '',
     clean_text TEXT,
     parse_json JSONB,
+    -- Structured result of re-parsing clean_text (the ground-truth parse). Filled
+    -- in when the corrected transcript is saved; the approved subset is the
+    -- flywheel's labeled corpus. See sql/add_flywheel.sql for the migration.
+    clean_parse_json JSONB,
+    -- Set when a human approves the clean transcript as ground truth; NULL means
+    -- not yet approved. Kept as a timestamp (not a bare bool) so the approval is
+    -- self-auditing. See sql/add_approved.sql for the standalone migration.
+    approved_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Idempotent for databases created before these columns existed (schema.sql runs
+-- on every boot; the CREATE TABLE above only fires for a fresh database).
+ALTER TABLE receipt_images ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+ALTER TABLE receipt_images ADD COLUMN IF NOT EXISTS clean_parse_json JSONB;
+
 CREATE INDEX IF NOT EXISTS receipt_images_user_id_idx ON receipt_images (user_id);
+
+-- merchant_aliases is the merchant arm of the recognition flywheel: a garbled
+-- raw-OCR header variant (normalized) that approving a clean transcript taught us
+-- maps to a canonical merchant. The parser matches headers against these too, so
+-- long legal-name headers that score below the canonical-name threshold start
+-- resolving. normalized_alias is UNIQUE so re-learning re-points rather than
+-- duplicates.
+CREATE TABLE IF NOT EXISTS merchant_aliases (
+    id SERIAL PRIMARY KEY,
+    merchant_id INTEGER NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+    normalized_alias TEXT NOT NULL UNIQUE,
+    source_image_id INTEGER REFERENCES receipt_images(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

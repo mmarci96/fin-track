@@ -48,14 +48,21 @@ type Receipt struct {
 // a later human-corrected transcript — the ground truth the recognition
 // flywheel learns from.
 type ReceiptImage struct {
-	ID           int       `json:"id"`
-	ReceiptID    *int      `json:"receipt_id"`
-	UserID       int       `json:"user_id"`
-	StoredPath   string    `json:"-"` // server-side path, never exposed
-	OriginalName string    `json:"original_name"`
-	ContentType  string    `json:"content_type"`
-	OCRText      string    `json:"ocr_text"`
-	CleanText    *string   `json:"clean_text"`
-	ParseJSON    []byte    `json:"parse,omitempty"` // raw receipt.Result JSON
-	CreatedAt    time.Time `json:"created_at"`
+	ID           int        `json:"id"`
+	ReceiptID    *int       `json:"receipt_id"`
+	UserID       int        `json:"user_id"`
+	StoredPath   string     `json:"-"` // server-side path, never exposed
+	OriginalName string     `json:"original_name"`
+	ContentType  string     `json:"content_type"`
+	OCRText      string     `json:"ocr_text"`
+	CleanText    *string    `json:"clean_text"`
+	ParseJSON    []byte     `json:"parse,omitempty"`       // raw receipt.Result JSON
+	CleanParseJSON []byte   `json:"clean_parse,omitempty"` // receipt.Result of re-parsing clean_text
+	ApprovedAt   *time.Time `json:"approved_at,omitempty"`
+	// Approved mirrors "approved_at IS NOT NULL". A concrete field (not a method)
+	// so it serializes when a ReceiptImage is marshaled directly (the list
+	// endpoint). Repository reads set it alongside ApprovedAt.
+	Approved bool `json:"approved"`
+
+	CreatedAt time.Time `json:"created_at"`
 }
