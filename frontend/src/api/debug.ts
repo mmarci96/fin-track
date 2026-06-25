@@ -14,12 +14,17 @@ interface RawSummary {
   original_name: string;
   content_type: string;
   created_at: string;
+  // Whether a human-approved clean transcript exists. Optional so the UI keeps
+  // working against backends that don't report it yet.
+  approved?: boolean;
 }
 
 interface RawMeta extends RawSummary {
   ocr_text: string;
   clean_text: string | null;
   parse: ParseResult | null;
+  // Structured result of re-parsing clean_text (the ground-truth parse).
+  clean_parse: ParseResult | null;
 }
 
 // Subset of the Go receipt.Result we render.
@@ -43,12 +48,16 @@ export interface DebugImageSummary {
   originalName: string;
   contentType: string;
   createdAt: string;
+  /** A human-approved clean transcript exists for this capture. */
+  approved: boolean;
 }
 
 export interface DebugImageMeta extends DebugImageSummary {
   ocrText: string;
   cleanText: string | null;
   parse: ParseResult | null;
+  /** Re-parse of the cleaned transcript — the structured ground-truth output. */
+  cleanParse: ParseResult | null;
 }
 
 /** Source URL for the stored image; auth rides on the session cookie / dev default user. */
@@ -83,6 +92,7 @@ export function useDebugImageMeta(id: number | null) {
         ocrText: raw.ocr_text,
         cleanText: raw.clean_text,
         parse: raw.parse,
+        cleanParse: raw.clean_parse,
       } satisfies DebugImageMeta;
     },
   });
@@ -110,14 +120,42 @@ export function useUploadDebugImage() {
   });
 }
 
+/**
+ * Save the corrected transcript. The backend re-parses it and returns the
+ * structured result so the viewer can show the extracted items live.
+ */
 export function useSaveCleanText(id: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (cleanText: string) =>
-      api.put<{ ok: boolean }>(`/receipt-images/${id}/clean`, {
-        clean_text: cleanText,
-      }),
+      api.put<{ ok: boolean; clean_parse: ParseResult }>(
+        `/receipt-images/${id}/clean`,
+        { clean_text: cleanText },
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.meta(id) }),
+  });
+}
+
+/** A merchant alias the flywheel learned when a capture was approved. */
+export interface LearnedAlias {
+  alias: string;
+  merchant: string;
+}
+
+/** Approve (or un-approve) a capture's clean transcript as ground truth. */
+export function useApproveImage(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (approved: boolean) =>
+      api.put<{ ok: boolean; approved: boolean; learned_alias?: LearnedAlias }>(
+        `/receipt-images/${id}/approve`,
+        { approved },
+      ),
+    // Refresh both the detail (badge) and the list (its ✓ marker).
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.meta(id) });
+      void qc.invalidateQueries({ queryKey: keys.all });
+    },
   });
 }
 
@@ -128,5 +166,6 @@ function mapSummary(r: RawSummary): DebugImageSummary {
     originalName: r.original_name,
     contentType: r.content_type,
     createdAt: r.created_at,
+    approved: r.approved ?? false,
   };
 }

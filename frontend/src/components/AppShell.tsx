@@ -18,10 +18,19 @@ const tabs = [
  * Mobile-first frame: a centered, phone-width column with a fixed bottom tab
  * bar. The bar is hidden on the full-screen scan flow so the cropper owns the
  * viewport.
+ *
+ * `/debug` is a desktop-oriented developer tool, so it breaks out of the
+ * phone-width column entirely and owns the full viewport (its own chrome lives
+ * inside the page), with no bottom tab bar.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const immersive = pathname === '/scan';
+  const fullBleed = pathname === '/debug';
+
+  if (fullBleed) {
+    return <div className="h-full w-full">{children}</div>;
+  }
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col md:max-w-2xl lg:max-w-3xl">
