@@ -1,0 +1,3 @@
+
+# local secret values (db_password, etc.) — never commit
+.secrets/

@@ -15,7 +15,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,10 +25,19 @@ import (
 
 // Config holds plugin settings supplied from the Traefik dynamic config.
 type Config struct {
-	// JWTSecret is the shared HS256 secret used to verify tokens.
-	JWTSecret string `json:"jwtSecret,omitempty"`
+	// JWTSecret is the shared HS256 secret used to verify tokens. It is supplied
+	// either inline (Value) or, preferably, from a mounted file (UsersFile) such
+	// as a Docker secret.
+	JWTSecret SecretSource `json:"jwtSecret,omitempty"`
 	// LoginURL is the absolute URL browsers are redirected to when unauthenticated.
 	LoginURL string `json:"loginURL,omitempty"`
+}
+
+// SecretSource supplies a secret either inline or from a file on disk. UsersFile
+// takes precedence so the real secret stays out of the dynamic config.
+type SecretSource struct {
+	UsersFile string `json:"usersFile,omitempty"`
+	Value     string `json:"value,omitempty"`
 }
 
 // CreateConfig initializes default config.
@@ -44,9 +55,22 @@ type TraefikAuth struct {
 
 // New creates a new middleware instance.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+	secret := config.JWTSecret.Value
+	if config.JWTSecret.UsersFile != "" {
+		b, err := os.ReadFile(config.JWTSecret.UsersFile)
+		if err != nil {
+			return nil, fmt.Errorf("traefikauth: read jwt secret %q: %w", config.JWTSecret.UsersFile, err)
+		}
+		secret = string(b)
+	}
+	// TrimSpace must match auth-service so both sides HMAC over identical bytes.
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return nil, fmt.Errorf("traefikauth: jwt secret is empty (set jwtSecret.usersFile or jwtSecret.value)")
+	}
 	return &TraefikAuth{
 		next:      next,
-		jwtSecret: config.JWTSecret,
+		jwtSecret: secret,
 		loginURL:  config.LoginURL,
 		name:      name,
 	}, nil
