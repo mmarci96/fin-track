@@ -1,0 +1,3 @@
+
+# local secret values (auth_db_password, jwt_secret) — never commit
+.secrets/

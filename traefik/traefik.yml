@@ -1,9 +1,16 @@
+log:
+  level: INFO
 api:
   insecure: true
+  dashboard: true
 entryPoints:
   web:
     address: ":80"
 providers:
+  swarm:
+    endpoint: "tcp://docker-socket-proxy:2375"
+    network: homelab
+    exposedByDefault: false
   # File provider still owns the traefikauth middleware definition (it carries
   # the JWT secret). Routers/services now come from container labels instead.
   file:
@@ -16,7 +23,7 @@ providers:
   docker:
     endpoint: "tcp://docker-socket-proxy:2375"
     exposedByDefault: false
-    network: fin-track
+    network:  '{{ env "NETWORK" }}'
     watch: true
 experimental:
   localPlugins:

@@ -54,3 +54,4 @@ test-results/
 traefik/.env
 traefik/.secret
 traefik/traefik-home/
+.secrets/

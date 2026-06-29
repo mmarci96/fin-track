@@ -16,5 +16,6 @@ http:
           # Both values are templated from the edge container's environment
           # (set via traefik/.env -> docker run -e). Keeps the secret and the
           # real hostname out of version control.
-          jwtSecret: '{{ env "JWT_SECRET" }}'
+          jwtSecret:
+            usersFile: /run/secrets/jwt_secret
           loginURL: 'https://{{ env "PUBLIC_HOSTNAME" }}/login'

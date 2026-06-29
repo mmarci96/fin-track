@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"time"
 )
@@ -27,14 +28,22 @@ var errInvalidToken = errors.New("invalid token")
 
 func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
-func sign(secret, signingInput string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
+func loadFromFile(path string) ([]byte, error) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+func sign(secret []byte, signingInput string) string {
+	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(signingInput))
 	return b64(mac.Sum(nil))
 }
 
 // signJWT returns a signed HS256 token for the given claims.
-func signJWT(secret string, c Claims) (string, error) {
+func signJWT(secret []byte, c Claims) (string, error) {
 	header := b64([]byte(`{"alg":"HS256","typ":"JWT"}`))
 	payload, err := json.Marshal(c)
 	if err != nil {
@@ -45,7 +54,7 @@ func signJWT(secret string, c Claims) (string, error) {
 }
 
 // verifyJWT checks the signature and expiry and returns the claims.
-func verifyJWT(secret, token string) (*Claims, error) {
+func verifyJWT(secret []byte, token string) (*Claims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, errInvalidToken

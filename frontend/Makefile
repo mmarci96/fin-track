@@ -6,25 +6,28 @@
 #   DEV client = the Vite dev server proxying /api to the air backend (`make dev`).
 
 APP_NAME         ?= fin-track-ui
-NETWORK          ?= fin-track
+NETWORK          ?= homelab
 IMAGE            ?= $(APP_NAME):latest
 WEB_PORT         ?= 80
 PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.48.0-noble
 
-.PHONY: start image ui-start traefik-start network kill kill-ui kill-traefik clean dev install build e2e
+.PHONY: start deploy image ui-start traefik-start network kill kill-ui kill-traefik clean dev install build e2e
 
-## start: build the UI image and run UI + Traefik on the backend network
-start: image start
+## start: build the UI image and deploy it as a swarm service on the edge network
+start: image deploy
 
 reset: kill start
 
 image:
 	docker build -t $(IMAGE) .
 
-start: kill
-	docker run -d \
+## deploy: (re)create the swarm service. Manager-pinned because the image is
+## built locally (no registry) and Traefik discovers it via the swarm provider.
+deploy: kill
+	docker service create -d \
 		--name $(APP_NAME) \
 		--network $(NETWORK) \
+		--constraint 'node.role==manager' \
 		--label 'traefik.enable=true' \
 		--label 'traefik.http.routers.web.rule=PathPrefix(`/`)' \
 		--label 'traefik.http.routers.web.entrypoints=web' \
@@ -35,7 +38,7 @@ start: kill
 		$(IMAGE)
 
 kill:
-	-docker rm -f $(APP_NAME)
+	-docker service rm $(APP_NAME)
 
 ## dev: run the Vite dev server (needs node), proxying /api to the DEV backend.
 ## Pair with `make -C ../backend dev` (air hot-reload on host port $(DEV_BACKEND_PORT)).

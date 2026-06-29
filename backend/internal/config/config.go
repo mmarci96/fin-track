@@ -2,6 +2,9 @@ package config
 
 import (
 	"fmt"
+	"net/url"
+	"os"
+	"strings"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -39,30 +42,42 @@ type AppConfig struct {
 	DbHost     string `env:"DB_HOST"`
 	DbPort     string `env:"DB_PORT"`
 	DbPassword string `env:"DB_PASSWORD"`
-	DbName     string `env:"DB_NAME"`
-	DbUser     string `env:"DB_USER"`
+	// DbPasswordPath, when set, is a file (e.g. a mounted Docker secret) the DB
+	// password is read from; it takes precedence over DB_PASSWORD.
+	DbPasswordPath string `env:"DB_PASSWORD_PATH"`
+	DbName         string `env:"DB_NAME"`
+	DbUser         string `env:"DB_USER"`
 }
 
 func (c *AppConfig) DatabaseURL() string {
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		c.DbUser,
-		c.DbPassword,
-		c.DbHost,
-		c.DbPort,
-		c.DbName,
-	)
+	// Build via net/url so credentials are percent-encoded. Secret-derived
+	// passwords are base64 and routinely contain '/', '+' and '=', which break a
+	// naive fmt.Sprintf DSN (the '/' gets parsed as the path, etc.).
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(c.DbUser, c.DbPassword),
+		Host:     fmt.Sprintf("%s:%s", c.DbHost, c.DbPort),
+		Path:     "/" + c.DbName,
+		RawQuery: "sslmode=disable",
+	}
+	return u.String()
 }
 
 func NewConfig(options ...func(*AppConfig)) *AppConfig {
-	var cfg AppConfig
-	err := env.Parse(&cfg)
+	cfg, err := env.ParseAs[AppConfig]()
 	if err != nil {
 		panic(err)
 	}
-	cfg, err = env.ParseAs[AppConfig]()
-	if err != nil {
-		panic(err)
+
+	// Prefer the mounted secret file (Docker/Swarm secret) over DB_PASSWORD, so
+	// the password never has to travel as a plaintext env var. dev-start, which
+	// sets DB_PASSWORD and no path, is unaffected.
+	if cfg.DbPasswordPath != "" {
+		b, err := os.ReadFile(cfg.DbPasswordPath)
+		if err != nil {
+			panic(fmt.Errorf("read DB_PASSWORD_PATH %q: %w", cfg.DbPasswordPath, err))
+		}
+		cfg.DbPassword = strings.TrimSpace(string(b))
 	}
 
 	for _, o := range options {

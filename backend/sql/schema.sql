@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS users (
 INSERT INTO users (id, name) VALUES (1, 'default')
     ON CONFLICT (id) DO NOTHING;
 
+-- The explicit id=1 seed above does NOT advance the SERIAL sequence, so the
+-- first auto-id INSERT (a real user) would otherwise collide on id=1. Bump the
+-- sequence past the current max. Idempotent and safe to re-run.
+SELECT setval(pg_get_serial_sequence('users', 'id'), GREATEST((SELECT MAX(id) FROM users), 1));
+
 CREATE TABLE IF NOT EXISTS merchants (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,

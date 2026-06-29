@@ -1,0 +1,6 @@
+.secrets
+
+.air.toml
+tmp
+data
+Makefile
