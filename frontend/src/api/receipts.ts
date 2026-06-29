@@ -76,17 +76,23 @@ function mapReceipt(r: RawReceipt): Receipt {
 
 // --- Request payloads (these DO use snake_case json tags on the backend) ----
 
+export interface ProductInput {
+  name: string;
+  price: number;
+  category_ids?: number[];
+}
+
 export interface ReceiptUpdateInput {
   total_amount: number;
   currency: string;
-  products: { name: string; price: number }[];
+  products: ProductInput[];
 }
 
 export interface ReceiptCreateInput {
   merchant_id: number;
   total_amount: number;
   currency: string;
-  products: { name: string; price: number }[];
+  products: ProductInput[];
 }
 
 const keys = {

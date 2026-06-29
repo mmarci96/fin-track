@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS categories (
 
 INSERT INTO categories (name) VALUES
     ('Food'),
-    ('Healthy'),
+    ('Health'),
     ('Fastfood'),
     ('Clothing'),
     ('Housekeeping'),
@@ -94,6 +94,9 @@ INSERT INTO categories (name) VALUES
     ('Sports'),
     ('Education'),
     ('Home'),
+    ('Medicine'),
+    ('Selfcare'),
+    ('Cleaning'),
     ('Other')
     ON CONFLICT (name) DO NOTHING;
 

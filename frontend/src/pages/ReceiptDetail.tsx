@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import {
   useReceipt,
@@ -9,6 +9,7 @@ import {
   type Decision,
 } from '@/api/receipts';
 import { useUpdateMerchant } from '@/api/merchants';
+import { CategoryPicker } from '@/components/CategoryPicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +26,7 @@ import {
 interface FormRow {
   name: string;
   price: string; // display string in major units
+  categoryIds: number[];
 }
 interface FormValues {
   merchant: string;
@@ -53,7 +55,9 @@ export function ReceiptDetail() {
   const remove = useDeleteReceipt();
 
   const { register, control, handleSubmit, reset, watch } = useForm<FormValues>(
-    { defaultValues: { merchant: '', total: '', currency: 'HUF', products: [] } },
+    {
+      defaultValues: { merchant: '', total: '', currency: 'HUF', products: [] },
+    },
   );
   const {
     fields,
@@ -74,6 +78,7 @@ export function ReceiptDetail() {
       products: receipt.products.map((p) => ({
         name: p.name,
         price: formatMoney(p.price, receipt.currency),
+        categoryIds: p.categories.map((c) => c.id),
       })),
     });
   }, [receipt, reset]);
@@ -95,7 +100,10 @@ export function ReceiptDetail() {
     // Only call it when the name actually changed and we have a real merchant.
     const merchant = values.merchant.trim();
     if (merchant && receipt.merchantId > 0 && merchant !== receipt.merchant) {
-      await updateMerchant.mutateAsync({ id: receipt.merchantId, name: merchant });
+      await updateMerchant.mutateAsync({
+        id: receipt.merchantId,
+        name: merchant,
+      });
     }
     await update.mutateAsync({
       total_amount: parseMoney(values.total, values.currency),
@@ -105,6 +113,7 @@ export function ReceiptDetail() {
         .map((p) => ({
           name: p.name.trim(),
           price: parseMoney(p.price, values.currency),
+          category_ids: p.categoryIds,
         })),
     });
     navigate('/');
@@ -204,6 +213,16 @@ export function ReceiptDetail() {
                   <Trash2 className="h-5 w-5 text-destructive" />
                 </Button>
               </div>
+              <Controller
+                control={control}
+                name={`products.${index}.categoryIds` as const}
+                render={({ field }) => (
+                  <CategoryPicker
+                    value={field.value ?? []}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
             </CardContent>
           </Card>
         ))}
@@ -212,7 +231,7 @@ export function ReceiptDetail() {
           type="button"
           variant="outline"
           className="w-full"
-          onClick={() => append({ name: '', price: '' })}
+          onClick={() => append({ name: '', price: '', categoryIds: [] })}
         >
           <Plus className="h-4 w-4" />
           Add item

@@ -26,8 +26,9 @@ func NewReceiptHandler(db *repository.Database, ollama *ollama.Service) *Receipt
 }
 
 type productInput struct {
-	Name  string `json:"name" binding:"required"`
-	Price int    `json:"price"`
+	Name        string `json:"name" binding:"required"`
+	Price       int    `json:"price"`
+	CategoryIDs []int  `json:"category_ids"`
 }
 
 type receiptCreateRequest struct {
@@ -46,7 +47,15 @@ type receiptUpdateRequest struct {
 func toProducts(in []productInput) []model.Product {
 	products := make([]model.Product, 0, len(in))
 	for _, p := range in {
-		products = append(products, model.Product{Name: p.Name, Price: p.Price})
+		categories := make([]model.Category, 0, len(p.CategoryIDs))
+		for _, id := range p.CategoryIDs {
+			categories = append(categories, model.Category{ID: id})
+		}
+		products = append(products, model.Product{
+			Name:       p.Name,
+			Price:      p.Price,
+			Categories: categories,
+		})
 	}
 	return products
 }

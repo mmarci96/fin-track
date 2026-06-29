@@ -27,7 +27,9 @@ export function useMerchants() {
   return useQuery({
     queryKey: keys.all,
     queryFn: async () => {
-      const body = await api.get<{ result: RawMerchant[] | null }>('/merchants');
+      const body = await api.get<{ result: RawMerchant[] | null }>(
+        '/merchants',
+      );
       return (body.result ?? []).map(mapMerchant);
     },
   });
