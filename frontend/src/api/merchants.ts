@@ -45,3 +45,20 @@ export function useCreateMerchant() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
 }
+
+export function useUpdateMerchant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const body = await api.put<{ result: RawMerchant }>(`/merchants/${id}`, {
+        name,
+      });
+      return mapMerchant(body.result);
+    },
+    // The merchant name is embedded in receipts, so refresh those too.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.all });
+      qc.invalidateQueries({ queryKey: ['receipts'] });
+    },
+  });
+}

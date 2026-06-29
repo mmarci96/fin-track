@@ -8,6 +8,7 @@ import {
   useDeleteReceipt,
   type Decision,
 } from '@/api/receipts';
+import { useUpdateMerchant } from '@/api/merchants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +27,7 @@ interface FormRow {
   price: string; // display string in major units
 }
 interface FormValues {
+  merchant: string;
   total: string;
   currency: string;
   products: FormRow[];
@@ -47,10 +49,11 @@ export function ReceiptDetail() {
 
   const { data: receipt, isLoading, isError } = useReceipt(id);
   const update = useUpdateReceipt(id);
+  const updateMerchant = useUpdateMerchant();
   const remove = useDeleteReceipt();
 
   const { register, control, handleSubmit, reset, watch } = useForm<FormValues>(
-    { defaultValues: { total: '', currency: 'HUF', products: [] } },
+    { defaultValues: { merchant: '', total: '', currency: 'HUF', products: [] } },
   );
   const {
     fields,
@@ -65,6 +68,7 @@ export function ReceiptDetail() {
   useEffect(() => {
     if (!receipt) return;
     reset({
+      merchant: receipt.merchant,
       total: formatMoney(receipt.total, receipt.currency),
       currency: receipt.currency,
       products: receipt.products.map((p) => ({
@@ -85,20 +89,25 @@ export function ReceiptDetail() {
   const enteredTotal = parseMoney(watch('total') || '0', currency);
   const mismatch = Math.abs(computedTotal - enteredTotal) > 0;
 
-  const onSubmit = (values: FormValues) => {
-    update.mutate(
-      {
-        total_amount: parseMoney(values.total, values.currency),
-        currency: values.currency,
-        products: values.products
-          .filter((p) => p.name.trim() !== '')
-          .map((p) => ({
-            name: p.name.trim(),
-            price: parseMoney(p.price, values.currency),
-          })),
-      },
-      { onSuccess: () => navigate('/') },
-    );
+  const onSubmit = async (values: FormValues) => {
+    if (!receipt) return;
+    // The merchant name is global reference data, renamed via its own endpoint.
+    // Only call it when the name actually changed and we have a real merchant.
+    const merchant = values.merchant.trim();
+    if (merchant && receipt.merchantId > 0 && merchant !== receipt.merchant) {
+      await updateMerchant.mutateAsync({ id: receipt.merchantId, name: merchant });
+    }
+    await update.mutateAsync({
+      total_amount: parseMoney(values.total, values.currency),
+      currency: values.currency,
+      products: values.products
+        .filter((p) => p.name.trim() !== '')
+        .map((p) => ({
+          name: p.name.trim(),
+          price: parseMoney(p.price, values.currency),
+        })),
+    });
+    navigate('/');
   };
 
   const onDelete = () => {
@@ -130,7 +139,7 @@ export function ReceiptDetail() {
         </Button>
         <div>
           <h1 className="text-lg font-semibold leading-tight">
-            {receipt.merchant || 'Unknown merchant'}
+            {watch('merchant')?.trim() || 'Unknown merchant'}
           </h1>
           <p className="text-xs text-muted-foreground">Review &amp; edit</p>
         </div>
@@ -155,6 +164,19 @@ export function ReceiptDetail() {
           messages={['Edit anything below if needed.']}
         />
       )}
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-muted-foreground">Store</h2>
+        <Card>
+          <CardContent>
+            <Input
+              placeholder="Merchant name"
+              aria-label="Merchant name"
+              {...register('merchant')}
+            />
+          </CardContent>
+        </Card>
+      </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">Items</h2>
@@ -239,9 +261,11 @@ export function ReceiptDetail() {
           type="submit"
           size="lg"
           className="w-full"
-          disabled={update.isPending}
+          disabled={update.isPending || updateMerchant.isPending}
         >
-          {update.isPending ? 'Saving…' : 'Save changes'}
+          {update.isPending || updateMerchant.isPending
+            ? 'Saving…'
+            : 'Save changes'}
         </Button>
         <Button
           type="button"
