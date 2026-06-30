@@ -322,8 +322,7 @@ func (db *Database) GetAllReceipts(userID int) ([]model.Receipt, error) {
 		return receipts, nil
 	}
 
-	// Attach products for all the user's receipts in one query so the list view
-	// can show item counts (categories are omitted; the detail view loads those).
+	// Attach products for all receipts in one query.
 	prodRows, err := db.DB.Query(`
 		SELECT p.receipt_id, p.id, p.name, p.price
 		FROM products p
@@ -335,16 +334,52 @@ func (db *Database) GetAllReceipts(userID int) ([]model.Receipt, error) {
 	}
 	defer prodRows.Close()
 
+	// productIndex maps product ID -> (receipt slice index, product slice index)
+	// so we can attach categories in the second pass below.
+	type productPos struct{ receiptIdx, productIdx int }
+	productIndex := make(map[int]productPos)
+
 	for prodRows.Next() {
 		var receiptID int
 		var product model.Product
 		if err := prodRows.Scan(&receiptID, &product.ID, &product.Name, &product.Price); err != nil {
 			return nil, errors.Wrap(err, "scan receipt product")
 		}
-		if i, ok := index[receiptID]; ok {
-			receipts[i].Products = append(receipts[i].Products, product)
+		if ri, ok := index[receiptID]; ok {
+			pi := len(receipts[ri].Products)
+			productIndex[product.ID] = productPos{ri, pi}
+			receipts[ri].Products = append(receipts[ri].Products, product)
+		}
+	}
+	if err := prodRows.Err(); err != nil {
+		return nil, errors.Wrap(err, "iterate receipt products")
+	}
+
+	// Attach categories for all products in one query.
+	catRows, err := db.DB.Query(`
+		SELECT pc.product_id, c.id, c.name
+		FROM product_categories pc
+		JOIN categories c ON pc.category_id = c.id
+		JOIN products p ON pc.product_id = p.id
+		JOIN receipts r ON p.receipt_id = r.id
+		WHERE r.user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, errors.Wrap(err, "query product categories")
+	}
+	defer catRows.Close()
+
+	for catRows.Next() {
+		var productID int
+		var cat model.Category
+		if err := catRows.Scan(&productID, &cat.ID, &cat.Name); err != nil {
+			return nil, errors.Wrap(err, "scan product category")
+		}
+		if pos, ok := productIndex[productID]; ok {
+			p := &receipts[pos.receiptIdx].Products[pos.productIdx]
+			p.Categories = append(p.Categories, cat)
 		}
 	}
 
-	return receipts, errors.Wrap(prodRows.Err(), "iterate receipt products")
+	return receipts, errors.Wrap(catRows.Err(), "iterate product categories")
 }

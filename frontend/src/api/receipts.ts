@@ -14,8 +14,6 @@ interface RawProduct {
   ID: number;
   Name: string;
   Price: number;
-  // The list endpoint omits categories today; the detail endpoint (and, once
-  // the backend is extended, the list too) includes them. Treat as optional.
   Categories?: RawCategory[] | null;
 }
 interface RawReceipt {
