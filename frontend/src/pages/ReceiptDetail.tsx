@@ -9,6 +9,7 @@ import {
   type Decision,
 } from '@/api/receipts';
 import { useUpdateMerchant } from '@/api/merchants';
+import { useCategories } from '@/api/categories';
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,8 +54,9 @@ export function ReceiptDetail() {
   const update = useUpdateReceipt(id);
   const updateMerchant = useUpdateMerchant();
   const remove = useDeleteReceipt();
+  const { data: categories } = useCategories();
 
-  const { register, control, handleSubmit, reset, watch } = useForm<FormValues>(
+  const { register, control, handleSubmit, reset, watch, setValue } = useForm<FormValues>(
     {
       defaultValues: { merchant: '', total: '', currency: 'HUF', products: [] },
     },
@@ -93,6 +95,15 @@ export function ReceiptDetail() {
   );
   const enteredTotal = parseMoney(watch('total') || '0', currency);
   const mismatch = Math.abs(computedTotal - enteredTotal) > 0;
+
+  const applyToAll = (categoryId: number) => {
+    const current = watch('products');
+    current.forEach((row, i) => {
+      if (!row.categoryIds.includes(categoryId)) {
+        setValue(`products.${i}.categoryIds`, [...row.categoryIds, categoryId]);
+      }
+    });
+  };
 
   const onSubmit = async (values: FormValues) => {
     if (!receipt) return;
@@ -188,7 +199,27 @@ export function ReceiptDetail() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Items</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Items</h2>
+          {categories && categories.length > 0 && (
+            <select
+              aria-label="Tag all items with category"
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) applyToAll(Number(e.target.value));
+                e.currentTarget.value = '';
+              }}
+            >
+              <option value="">Tag all items…</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         {fields.map((field, index) => (
           <Card key={field.id}>
             <CardContent className="space-y-2">

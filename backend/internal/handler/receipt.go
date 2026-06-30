@@ -17,7 +17,7 @@ import (
 // ReceiptHandler serves the non-OCR receipt CRUD endpoints. All operations are
 // scoped to the acting user from the request context.
 type ReceiptHandler struct {
-	db *repository.Database
+	db     *repository.Database
 	ollama *ollama.Service
 }
 
@@ -70,7 +70,7 @@ func parseIDParam(c *gin.Context, name string) (int, error) {
 }
 
 func (h *ReceiptHandler) CategorizeReceiptItems(c *gin.Context) {
-		id, err := parseIDParam(c, "id")
+	id, err := parseIDParam(c, "id")
 	if err != nil {
 		httpx.Respond(c, err)
 		return
@@ -82,9 +82,9 @@ func (h *ReceiptHandler) CategorizeReceiptItems(c *gin.Context) {
 		httpx.Respond(c, err)
 		return
 	}
-	
+
 	items := receipt.Products
-	
+
 	availableCategories, err := h.db.GetAllCategories()
 	if err != nil {
 		httpx.Respond(c, err)
@@ -99,14 +99,11 @@ func (h *ReceiptHandler) CategorizeReceiptItems(c *gin.Context) {
 		prompt := "Ezek kozul a kategoriak kozul: " + strings.Join(categoryNames, ", ") + ". -> Valaszd ki melyik kategoriakba tartozik (tobb is valaszthato): " + item.Name
 		res, err := h.ollama.Generate(c, model.GenerateRequest{Model: "qwen3:1.7b", Prompt: prompt, Think: false})
 		if err != nil {
-			httpx.Respond(c,err)
+			httpx.Respond(c, err)
 		}
 		reuslts = append(reuslts, *res)
 	}
 
-	if err != nil {
-		httpx.Respond(c,err)
-	}
 	c.JSON(http.StatusOK, gin.H{"result": reuslts})
 }
 

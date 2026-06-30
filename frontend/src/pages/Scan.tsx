@@ -30,9 +30,13 @@ export function Scan() {
     setStage('capture');
   };
 
-  const onPick = (objectUrl: string) => {
+  const onCameraPick = (objectUrl: string) => {
     setSrc(objectUrl);
     setStage('crop');
+  };
+
+  const onLibraryPick = async (file: File) => {
+    await onConfirmCrop(file);
   };
 
   const onConfirmCrop = async (blob: Blob) => {
@@ -109,7 +113,7 @@ export function Scan() {
             Take a clear photo of your receipt, then crop to just the white
             paper. We'll read the items and total automatically.
           </p>
-          <CameraInput onPick={onPick} />
+          <CameraInput onCameraPick={onCameraPick} onLibraryPick={onLibraryPick} />
           <button
             type="button"
             onClick={() => navigate('/expenses/new')}

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -64,7 +65,7 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 		httpx.Respond(c, err)
 		return
 	}
-
+	// parseImgTxt(text)
 	// Nothing usable: ask the user for a clearer photo instead of storing junk.
 	if result.Decision == receipt.DecisionReject {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
@@ -88,6 +89,14 @@ func (h *ImageHandler) OCR(c *gin.Context) {
 		"detected": gin.H{"total": result.Total, "reconciled": result.Reconciled, "merchant_known": result.MerchantKnown},
 		"text":     text,
 	})
+}
+
+func parseImgTxt(txt string) {
+	fmt.Printf("text: %s", txt)
+	fmt.Print(txt)
+	fmt.Println("--------------------------------------------------------------------------")
+	fmt.Println(txt)
+	fmt.Println("--------------------------------------------------------------------------")
 }
 
 // OCRDebug is the developer-facing upload. It runs the same pipeline but ALSO
@@ -342,7 +351,7 @@ func (h *ImageHandler) learnMerchantAlias(ctx context.Context, id, userID int) g
 
 // firstNonEmptyLine returns the first non-blank line of s (trimmed), or "".
 func firstNonEmptyLine(s string) string {
-	for _, l := range strings.Split(s, "\n") {
+	for l := range strings.SplitSeq(s, "\n") {
 		if t := strings.TrimSpace(l); t != "" {
 			return t
 		}
@@ -358,7 +367,8 @@ func (h *ImageHandler) ocrAndParse(ctx context.Context, path string) (string, re
 	if err != nil {
 		return "", receipt.Result{}, apperr.Internal("could not read receipt image", err)
 	}
-	logger.FromContext(ctx).Debug("ocr extraction complete", "text_len", len(text))
+	// logger.FromContext(ctx).Debug("ocr extraction complete", "text_len", len(text))
+	// logger.FromContext(ctx).Debug("ocr extraction complete", "text", text)
 
 	result, err := h.parseText(ctx, text)
 	if err != nil {
@@ -407,10 +417,8 @@ func (h *ImageHandler) persistReceipt(ctx context.Context, result receipt.Result
 	// onto a single UNKNOWN sentinel rather than minting a junk merchant row per
 	// garbled OCR header (the old self-poisoning bug).
 	merchantName := "UNKNOWN"
-	if result.MerchantKnown {
-		if n := strings.TrimSpace(result.MerchantName); n != "" {
-			merchantName = n
-		}
+	if n := strings.TrimSpace(result.MerchantName); n != "" {
+		merchantName = n
 	}
 	merchantID, err := h.db.ResolveMerchant(merchantName)
 	if err != nil {

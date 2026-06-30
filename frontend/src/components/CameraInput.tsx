@@ -2,20 +2,25 @@ import { useRef } from 'react';
 import { Camera, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-/**
- * Two entry points to get a photo into the crop flow:
- *  - "Take photo" opens the rear camera on phones (capture="environment"),
- *  - "Choose from library" picks an existing image.
- * Both hand back an object URL the cropper can load.
- */
-export function CameraInput({ onPick }: { onPick: (src: string) => void }) {
+interface CameraInputProps {
+  onCameraPick: (src: string) => void;
+  onLibraryPick: (file: File) => void;
+}
+
+export function CameraInput({ onCameraPick, onLibraryPick }: CameraInputProps) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onPick(URL.createObjectURL(file));
-    e.target.value = ''; // allow re-picking the same file
+    if (file) onCameraPick(URL.createObjectURL(file));
+    e.target.value = '';
+  };
+
+  const handleLibraryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onLibraryPick(file);
+    e.target.value = '';
   };
 
   return (
@@ -26,14 +31,14 @@ export function CameraInput({ onPick }: { onPick: (src: string) => void }) {
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handleChange}
+        onChange={handleCameraChange}
       />
       <input
         ref={libraryRef}
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={handleChange}
+        onChange={handleLibraryChange}
       />
 
       <Button

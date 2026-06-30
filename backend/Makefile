@@ -145,11 +145,14 @@ test-ocr:
 dev-image:
 	docker build -f Dockerfile.dev -t $(APP_NAME)-dev:latest .
 
+DEV_NETWORK = fin-track-dev
+
 dev-start: kill dev-image
 	docker run  -it --rm \
 		--name $(APP_NAME) \
 		-p $(PORT):$(PORT) \
-		--network $(NETWORK) \
+		-p 8081:$(PORT) \
+		--network $(DEV_NETWORK) \
 		-v $(shell pwd):/tmp/fin-track-src \
 		-v go-mod-cache:/go/pkg/mod \
 		-e HOST=$(HOST) \
@@ -167,6 +170,21 @@ dev-start: kill dev-image
 		--entrypoint=air \
 		$(APP_NAME)-dev:latest \
 		 -c /tmp/fin-track-src/.air.toml
+
+dev-net:
+	-docker network create $(DEV_NETWORK)
+
+dev-db: dev-net 
+	-docker rm -f $(DB_SERVICE)
+	docker run -d \
+		--name $(DB_SERVICE) \
+		--network $(DEV_NETWORK) \
+		-e POSTGRES_USER=$(DB_USER) \
+		-e POSTGRES_PASSWORD=$(DB_PASSWORD) \
+		-e POSTGRES_DB=$(DB_NAME) \
+		--mount type=volume,source=$(DB_DATA_DOCKER_VOL),target=/var/lib/postgresql/data \
+		$(DB_IMAGE):$(DB_VERSION)
+
 
 image:
 	docker build -t $(APP_NAME):$(APP_VERSION) .
